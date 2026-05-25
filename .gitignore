@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.env
+.venv/
+venv/
+输入/
+输出/
+*.log
+.DS_Store
+Thumbs.db

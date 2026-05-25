@@ -1,0 +1,218 @@
+Design Summary: Realistic Rollover and Interbank Danger Zone
+============================================================
+Conversation summary (from "Realistic Rollover" through exit-restructure for bank j)
+
+1. Realistic Rollover: Full P+I Repayment Every Period, New Contracts Every Period
+---------------------------------------------------------------------------------
+
+Core principle
+  Maturity is NOT "interest-only while principal rolls silently."
+  Each period:
+    (1) Borrower repays principal + interest (P+I) in full via EN clearing (real cash flow).
+    (2) Eligible counterparties may immediately sign NEW contracts (rollover).
+    (3) RFQ / matcher still creates additional NEW contracts in the same period.
+
+One-line definition
+  Settle in full (P+I) -> immediately create new contract(s) (rollover + new RFQ trades).
+
+Two conventions for rolling P+I into the next notional
+  Convention A (conservative)
+    - Payment: P × (1 + r) via EN clearing.
+    - New principal: P' = P (same notional re-borrowed).
+    - Interest is paid in cash and not capitalized.
+
+  Convention B (more realistic for short-term interbank funding)
+    - Payment: still P × (1 + r) via EN first (repay every period).
+    - New principal: P' = P × (1 + r) (P+I rolled into next contract).
+    - Borrower "repays in full, then immediately re-borrows a larger amount."
+
+Where new contracts each period come from (two parallel channels)
+  New contracts this period = rollover contracts (after maturity)
+                            + RFQ / GNN match -> Trade -> Contract
+
+  Rollover:     same lender-borrower pair often continues; notional ~ prior P+I.
+  RFQ/matching: new counterparty or incremental volume.
+
+Architecture alignment (ContractBook)
+  - ContractBook: sole source of cross-period continuity.
+  - exposure_matrix: snapshot re-aggregated each period from the book.
+  - Do NOT rollover on the matrix itself.
+
+Per-period timeline (normal operations)
+  Start step t
+    -> Pull due contracts from ContractBook
+    -> Amount due = principal × (1 + rate)  [P+I together]
+    -> EN clearing: full settlement
+    -> If paid: remove old Contract
+    -> If rollover eligible: new Contract (P', r', maturity = t + Δ)
+    -> RFQ / matcher: new Trade -> new Contract
+    -> Rebuild exposure_matrix from ContractBook
+
+
+2. Danger Zone: Do Not End the Relation — Freeze Instead
+--------------------------------------------------------
+
+Motivation
+  Approaching a tipping point should not immediately default and sever links.
+  Instead: enter a danger zone, suspend flows, keep notes on ContractBook.
+
+Zone model
+  Normal
+    Metrics OK. Full RFQ, rollover, EN settlement.
+
+  Warning
+    Drifting toward tipping point. Tighter limits; limited operation.
+
+  Suspended (Danger)
+    At / just before tipping point.
+    ALL flows frozen: no new loans, no maturity payments, no rollover.
+    Contracts remain on book with status = "suspended".
+
+  Default (last resort)
+    Hard breach after prolonged suspension without recovery.
+    Resolution; relation may end.
+
+Example tipping triggers (any one)
+  - CAR <= 0.04
+  - LCR <= 0.85
+  - equity / liabilities <= 0.02
+
+What "suspend all loans and returns" means
+  For bank i in Suspended:
+    - New RFQ / matcher trades: blocked (as lender or borrower).
+    - Rollover: blocked.
+    - Maturity EN clearing: deferred (maturity bumped; contract NOT removed).
+    - Project investment: blocked (invest_free_cash, allocate_borrowed, update_project_book).
+    - Exogenous liquidity shocks: paused for that bank.
+
+  What is NOT done:
+    - Contracts are NOT removed from ContractBook.
+    - Counterparty edges remain (status = suspended).
+    - exposure_matrix still reflects outstanding notional (frozen snapshot).
+    - The relationship graph stays connected but inactive.
+
+Exit criteria (resume)
+  Hold suspension until ALL hold for M consecutive steps (e.g. M = 5):
+    - CAR >= 0.06
+    - LCR >= 1.00
+    - equity / liabilities >= 0.04
+    - Minimum suspend duration (e.g. 3 steps)
+
+Hard default (optional last resort)
+  If suspended > 30 steps AND CAR <= 0 -> is_active = False.
+
+
+3. After Bank j Exits the Danger Zone: Handling Prior Borrowings
+-----------------------------------------------------------------
+
+Premise
+  During suspension, debt was NOT erased — only cash flows were frozen.
+  On exit, the question is how to RESTART settlement on frozen notes.
+
+What exists at exit for bank j (borrower)
+  - Suspended contracts: (l1->j), (l2->j), ... still on ContractBook.
+  - Outstanding principal P1, P2, ...
+  - Accrued interest: per policy (frozen or accrued during suspension).
+  - liquid_assets: may reflect pre-suspension borrowings already received.
+  - borrowed_cash[j]: should be 0 if cleared each period; if blocked, may need
+    post-exit allocation to projects.
+
+Important accounting point
+  Previously borrowed cash already sits in liquid_assets.
+  Exit handles the LIABILITY side (notes), not a re-transfer of cash.
+
+Recommended four-step exit flow
+  Step 1 — Inventory
+    For each suspended contract (l -> j):
+      outstanding_principal = P
+      accrued_interest      = per suspension policy
+      total_claim           = P + accrued (or P only if interest frozen)
+    TotalDebt_j = sum of total_claim.
+
+  Step 2 — Accrued interest policy during suspension
+    Option A: Accrue during suspension -> heavier exit debt.
+    Option B: Freeze during suspension -> exit debt ~ P only (forbearance-style).
+    Recommended for forbearance narrative: Option B (or capped accrual).
+
+  Step 3 — Restructure (recommended; NOT full immediate repayment)
+    - Do NOT wipe debt on exit.
+    - Do NOT require full repayment in the exit step.
+    - Optional partial paydown: e.g. up to 10% of excess liquidity above buffer.
+    - Remaining debt merged into one (or few) new ACTIVE Contract(s):
+        principal' = remaining debt
+        rate'      = base_rate + penalty_spread
+        maturity'  = exit_step + 6 (example)
+        old suspended contracts removed; RELATION preserved.
+
+  Step 4 — Restart operations
+    - j as lender: suspended lender-side notes return to active.
+    - Re-enable RFQ, rollover, EN settlement under tighter monitoring until
+      CAR/LCR stay above resume levels for several periods.
+
+One-line rule for bank j
+  After j exits the danger zone, treat prior borrowings as still-valid frozen notes:
+  reconcile principal +/- accrued interest, then convert them into new active
+  contract(s) with a longer maturity and (optionally) a small immediate payment —
+  do not erase the debt and do not demand full repayment in one step.
+
+
+4. End-to-End Logic Chain
+-------------------------
+
+  Normal period
+    Each period: P+I settled via EN -> rollover new note + RFQ new note.
+
+  Stress
+    Metrics hit tipping point -> enter Suspended.
+    Due contracts deferred; no new origination; notes frozen on ContractBook.
+
+  Recovery
+    Metrics stable for resume window -> exit Suspended.
+    Frozen borrower notes restructured into new active contract(s).
+    Optional partial paydown from excess liquidity.
+
+  Return to normal
+    P+I settlement + rollover + RFQ new contracts resume each period.
+
+
+5. Implementation (end of conversation)
+-------------------------------------
+
+Implemented separately under git/ without modifying the original script:
+
+  interbank_danger_zone_policy.py
+    Core policy: tipping point, suspension, deferral, exit restructure,
+    partial paydown, hard-default fallback.
+
+  bank_simulation_model_decentralized_danger_zone.py
+    Renamed simulation entry point extending the decentralized central-policy script.
+
+  Original unchanged:
+    bank_simulation_model_decentralized_central_policy.py
+
+  Logs written to:
+    输出/danger_zone_logs/
+      decentralized_danger_zone_summary.csv
+      decentralized_danger_zone_events.csv
+
+Key implemented parameters (DangerZoneConfig)
+  car_tipping              = 0.04
+  car_resume               = 0.06
+  lcr_tipping              = 0.85
+  lcr_resume               = 1.00
+  suspend_min_steps        = 3
+  resume_window            = 5
+  exit_partial_pay_ratio   = 0.10
+  restructure_maturity     = 6
+  restructure_penalty_spread = 0.01
+  hard_default_after_steps = 30
+
+
+6. Design Evolution in One Sentence
+-----------------------------------
+
+From "real P+I settlement every period with same-period rollover and RFQ origination,"
+to "under stress, preserve relations by freezing notes instead of severing them,"
+to "on exit, restructure bank j's frozen debt into new active contracts rather than
+wiping it or demanding one-shot full repayment" — a realistic, ContractBook-consistent
+interbank continuity framework.

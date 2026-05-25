@@ -1,0 +1,272 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word 15">
+<title>Design Summary: Realistic Rollover and Interbank Danger Zone</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+  @page { size: A4; margin: 2.54cm; }
+  body {
+    font-family: Calibri, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.45;
+    color: #000000;
+  }
+  h1 {
+    font-size: 20pt;
+    text-align: center;
+    margin-bottom: 6pt;
+  }
+  .subtitle {
+    text-align: center;
+    color: #505050;
+    font-size: 10.5pt;
+    margin-bottom: 18pt;
+  }
+  h2 {
+    font-size: 14pt;
+    margin-top: 20pt;
+    margin-bottom: 8pt;
+    border-bottom: 1px solid #CCCCCC;
+    padding-bottom: 4pt;
+  }
+  h3 {
+    font-size: 12pt;
+    margin-top: 14pt;
+    margin-bottom: 6pt;
+  }
+  p { margin: 6pt 0; }
+  ul, ol { margin: 6pt 0 6pt 18pt; }
+  li { margin-bottom: 4pt; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10pt 0 14pt 0;
+    font-size: 10.5pt;
+  }
+  th, td {
+    border: 1px solid #999999;
+    padding: 6pt 8pt;
+    vertical-align: top;
+  }
+  th {
+    background: #EEF3FA;
+    font-weight: bold;
+    text-align: left;
+  }
+  .highlight {
+    background: #FFF8E1;
+    padding: 8pt 10pt;
+    border-left: 3px solid #F0AD4E;
+    margin: 10pt 0;
+  }
+  .mono { font-family: Consolas, monospace; font-size: 10pt; }
+</style>
+</head>
+<body>
+
+<h1>Design Summary:<br>Realistic Rollover and Interbank Danger Zone</h1>
+<p class="subtitle">Conversation summary (from Realistic Rollover through exit-restructure for bank j)</p>
+
+<p>This document summarizes the interbank mechanism design for the bank network simulation: realistic rollover with full P+I repayment, danger-zone forbearance instead of immediate relation termination, and post-exit debt restructuring for borrower bank <b>j</b>.</p>
+
+<h2>1. Realistic Rollover: Full P+I Every Period, New Contracts Every Period</h2>
+
+<h3>Core principle</h3>
+<p>Maturity is <b>not</b> interest-only while principal rolls silently. Each period:</p>
+<ul>
+  <li>Borrower repays <b>principal + interest (P+I)</b> in full via EN clearing (real cash flow).</li>
+  <li>Eligible counterparties may immediately sign <b>new contracts</b> (rollover).</li>
+  <li>RFQ / matcher still creates <b>additional new contracts</b> in the same period.</li>
+</ul>
+
+<div class="highlight">
+  <b>One-line definition:</b> Settle in full (P+I) &rarr; immediately create new contract(s) (rollover + new RFQ trades).
+</div>
+
+<h3>Two conventions for rolling P+I</h3>
+<table>
+  <tr>
+    <th>Convention</th>
+    <th>Payment at maturity</th>
+    <th>New principal P'</th>
+  </tr>
+  <tr>
+    <td><b>A &mdash; Conservative</b></td>
+    <td>P &times; (1 + r) via EN clearing</td>
+    <td>P' = P (same notional re-borrowed)</td>
+  </tr>
+  <tr>
+    <td><b>B &mdash; Short-term realistic</b></td>
+    <td>P &times; (1 + r) via EN clearing first</td>
+    <td>P' = P &times; (1 + r) (P+I capitalized into next note)</td>
+  </tr>
+</table>
+
+<h3>New contracts each period (two channels)</h3>
+<p class="mono">New contracts = rollover contracts after maturity + RFQ/GNN match &rarr; Trade &rarr; Contract</p>
+<ul>
+  <li><b>Rollover:</b> often same lender&ndash;borrower pair; notional &asymp; prior P+I.</li>
+  <li><b>RFQ:</b> new counterparty or incremental volume.</li>
+</ul>
+
+<h3>Architecture (ContractBook)</h3>
+<ul>
+  <li><b>ContractBook</b> = sole source of cross-period continuity.</li>
+  <li><b>exposure_matrix</b> = snapshot re-aggregated each period from the book.</li>
+  <li>Do <b>not</b> rollover on the matrix itself.</li>
+</ul>
+
+<h3>Normal-period timeline</h3>
+<ol>
+  <li>Pull due contracts from ContractBook.</li>
+  <li>Amount due = principal &times; (1 + rate) &mdash; P+I together.</li>
+  <li>EN clearing: full settlement.</li>
+  <li>If paid: remove old Contract; if rollover eligible: write new Contract (P', r', maturity = t + &Delta;).</li>
+  <li>RFQ / matcher creates additional Trade &rarr; Contract.</li>
+  <li>Rebuild exposure_matrix from ContractBook.</li>
+</ol>
+
+<h2>2. Danger Zone: Do Not End the Relation &mdash; Freeze Instead</h2>
+
+<p>Approaching a tipping point should not immediately default and sever links. Instead, enter a <b>danger zone</b>: suspend flows, keep notes on ContractBook.</p>
+
+<h3>Zone model</h3>
+<table>
+  <tr>
+    <th>Zone</th>
+    <th>Meaning</th>
+    <th>Loans &amp; returns</th>
+  </tr>
+  <tr>
+    <td><b>Normal</b></td>
+    <td>Metrics OK</td>
+    <td>Full RFQ, rollover, EN settlement</td>
+  </tr>
+  <tr>
+    <td><b>Warning</b></td>
+    <td>Drifting toward tipping point</td>
+    <td>Tighter limits; limited operation</td>
+  </tr>
+  <tr>
+    <td><b>Suspended</b></td>
+    <td>At / just before tipping point</td>
+    <td><b>All frozen:</b> no new loans, no maturity pay, no rollover</td>
+  </tr>
+  <tr>
+    <td><b>Default</b></td>
+    <td>Hard breach (last resort)</td>
+    <td>Resolution; relation may end</td>
+  </tr>
+</table>
+
+<h3>Example tipping triggers (any one)</h3>
+<ul>
+  <li>CAR &le; 0.04</li>
+  <li>LCR &le; 0.85</li>
+  <li>equity / liabilities &le; 0.02</li>
+</ul>
+
+<h3>While suspended</h3>
+<ul>
+  <li>Maturity EN clearing &rarr; <b>deferred</b> (maturity bumped; contract <b>not</b> removed).</li>
+  <li>New RFQ / matcher &rarr; blocked.</li>
+  <li>Project investment &rarr; blocked.</li>
+  <li>Contract status = <b>suspended</b>; relation stays on ContractBook.</li>
+  <li>exposure_matrix still reflects outstanding notional.</li>
+</ul>
+
+<h3>Exit criteria (resume)</h3>
+<p>Hold suspension until <b>all</b> hold for <b>M consecutive steps</b> (e.g. M = 5), after minimum suspend duration (e.g. 3 steps):</p>
+<ul>
+  <li>CAR &ge; 0.06</li>
+  <li>LCR &ge; 1.00</li>
+  <li>equity / liabilities &ge; 0.04</li>
+</ul>
+
+<p><b>Hard default (optional):</b> if suspended &gt; 30 steps AND CAR &le; 0 &rarr; is_active = False.</p>
+
+<h2>3. After Bank j Exits: Handling Prior Borrowings</h2>
+
+<p>During suspension, debt was <b>not</b> erased &mdash; only cash flows were frozen. Previously borrowed cash is already in <span class="mono">liquid_assets</span>; exit handles the <b>liability side</b>.</p>
+
+<h3>Recommended exit flow</h3>
+<ol>
+  <li><b>Inventory:</b> Sum all suspended (l&rarr;j) contracts &rarr; TotalDebt<sub>j</sub>.</li>
+  <li><b>Interest policy:</b> Freeze accrual during suspension (recommended) or accrue with cap.</li>
+  <li><b>Restructure:</b> Do NOT wipe debt; do NOT require full immediate repayment. Optional partial paydown (e.g. 10% of excess liquidity). Merge remaining into new active contract(s) with longer maturity and penalty spread.</li>
+  <li><b>Restart:</b> Re-enable RFQ, rollover, EN settlement; lender-side notes return to active.</li>
+</ol>
+
+<div class="highlight">
+  <b>One-line rule:</b> Treat prior borrowings as still-valid frozen notes; reconcile principal &plusmn; accrued interest; convert to new active contract(s) with longer maturity and optional small payment &mdash; do not erase debt and do not demand full repayment in one step.
+</div>
+
+<h3>Cash already received by j</h3>
+<ul>
+  <li>Pre-suspension borrowings already sit in liquid_assets &mdash; no double repayment.</li>
+  <li>Exit restructures the <b>notes</b>, not a re-transfer of cash.</li>
+  <li>Unallocated borrowed_cash, if any, can be allocated to projects after exit.</li>
+</ul>
+
+<h2>4. End-to-End Logic Chain</h2>
+<ol>
+  <li><b>Normal:</b> each period P+I via EN &rarr; rollover + RFQ new notes.</li>
+  <li><b>Stress:</b> tipping point &rarr; Suspended; defer due contracts; freeze flows.</li>
+  <li><b>Recovery:</b> stable metrics &rarr; exit; restructure frozen notes.</li>
+  <li><b>Return:</b> P+I + rollover + RFQ resume each period.</li>
+</ol>
+
+<h2>5. Implementation (git/)</h2>
+<table>
+  <tr>
+    <th>File</th>
+    <th>Role</th>
+  </tr>
+  <tr>
+    <td>interbank_danger_zone_policy.py</td>
+    <td>Core policy module (tipping, suspend, defer, exit restructure)</td>
+  </tr>
+  <tr>
+    <td>bank_simulation_model_decentralized_danger_zone.py</td>
+    <td>Renamed simulation entry (extends decentralized script)</td>
+  </tr>
+  <tr>
+    <td>bank_simulation_model_decentralized_central_policy.py</td>
+    <td>Original script (unchanged)</td>
+  </tr>
+  <tr>
+    <td>Output/danger_zone_logs/</td>
+    <td>Summary + event CSV logs</td>
+  </tr>
+</table>
+
+<h3>Key parameters (DangerZoneConfig)</h3>
+<table>
+  <tr>
+    <th>Parameter</th>
+    <th>Default</th>
+  </tr>
+  <tr><td>car_tipping / car_resume</td><td>0.04 / 0.06</td></tr>
+  <tr><td>lcr_tipping / lcr_resume</td><td>0.85 / 1.00</td></tr>
+  <tr><td>suspend_min_steps / resume_window</td><td>3 / 5</td></tr>
+  <tr><td>exit_partial_pay_ratio</td><td>0.10</td></tr>
+  <tr><td>restructure_maturity</td><td>6</td></tr>
+  <tr><td>restructure_penalty_spread</td><td>0.01</td></tr>
+  <tr><td>hard_default_after_steps</td><td>30</td></tr>
+</table>
+
+<h2>6. Design Evolution in One Sentence</h2>
+<p>From real P+I settlement every period with same-period rollover and RFQ origination, to preserving relations by freezing notes under stress instead of severing them, to restructuring bank j's frozen debt into new active contracts on exit rather than wiping it or demanding one-shot full repayment &mdash; a realistic, ContractBook-consistent interbank continuity framework.</p>
+
+</body>
+</html>
