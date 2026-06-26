@@ -1,0 +1,10 @@
+# Bank simulation + compare script dependencies
+numpy
+pandas
+openpyxl
+matplotlib
+scipy
+networkx
+Pillow
+torch
+torch-geometric

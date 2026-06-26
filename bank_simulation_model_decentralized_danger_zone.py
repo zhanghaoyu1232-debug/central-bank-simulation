@@ -73,6 +73,20 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
         self.danger_zone_enabled = True
         self.danger_zone = DangerZoneManager(danger_zone_config or DangerZoneConfig())
         self.initial_state_export_prefix = "decentralized_danger_zone"
+        self.low_lcr_deleveraging_threshold = 0.85
+        self.low_lcr_market_borrow_floor = 0.20
+        self.low_lcr_lending_preserve_threshold = 1.05
+        self.low_lcr_lending_floor = 0.0
+        self.low_lcr_project_investment_floor = 0.10
+        self.policy_lcr_repair_target = 0.90
+        self.policy_lcr_repair_cap_share = 0.35
+        self.liquidity_rebuild_target = 0.90
+        self.liquidity_rebuild_cashflow_bull = 0.0012
+        self.liquidity_rebuild_cashflow_bear = 0.0005
+        self.short_liability_termout_rate = 0.006
+        self.project_liquidation_rate = 0.010
+        self.project_liquidation_haircut = 0.03
+        self.low_lcr_bear_shock_floor = -0.00015
 
     def initialize_network(self):
         super().initialize_network()
@@ -85,6 +99,166 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
         if not getattr(self, "danger_zone_enabled", False):
             return False
         return self.danger_zone.is_flow_blocked(bank_idx)
+
+    def _bank_lcr_value(self, bank: dict) -> float:
+        try:
+            return float(bank.get("liquidity_coverage_ratio", 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+
+    def _low_lcr_deleveraging_scale(self, bank: dict) -> float:
+        lcr = self._bank_lcr_value(bank)
+        threshold = float(getattr(self, "low_lcr_deleveraging_threshold", 0.85))
+        if lcr >= threshold:
+            return 1.0
+        floor = float(getattr(self, "low_lcr_market_borrow_floor", 0.20))
+        return float(np.clip(floor + (1.0 - floor) * (lcr / max(threshold, 1e-9)), floor, 1.0))
+
+    def _delever_low_lcr_intentions(self, intentions: list) -> list:
+        adjusted = []
+        for it in intentions:
+            bank = self.banks[it.bank_idx]
+            if it.role == "borrower":
+                scale = self._low_lcr_deleveraging_scale(bank)
+            elif it.role == "lender":
+                lcr = self._bank_lcr_value(bank)
+                threshold = float(getattr(self, "low_lcr_lending_preserve_threshold", 1.05))
+                floor = float(getattr(self, "low_lcr_lending_floor", 0.0))
+                scale = 1.0 if lcr >= threshold else float(np.clip(lcr / max(threshold, 1e-9), floor, 1.0))
+            else:
+                scale = 1.0
+            if scale < 1.0:
+                qty = float(it.quantity) * scale
+                if qty <= 1e-6:
+                    continue
+                adjusted.append(type(it)(
+                    bank_idx=it.bank_idx,
+                    role=it.role,
+                    reserve_bid=it.reserve_bid,
+                    reserve_ask=it.reserve_ask,
+                    quantity=qty,
+                ))
+            else:
+                adjusted.append(it)
+        return adjusted
+
+    def _project_investment_scale(self, bank: dict) -> float:
+        lcr = self._bank_lcr_value(bank)
+        threshold = float(getattr(self, "low_lcr_deleveraging_threshold", 0.85))
+        if lcr >= threshold:
+            return 1.0
+        floor = float(getattr(self, "low_lcr_project_investment_floor", 0.10))
+        return float(np.clip(floor + (1.0 - floor) * (lcr / max(threshold, 1e-9)), floor, 1.0))
+
+    def _repair_low_lcr_with_policy_support(self, step: int) -> None:
+        if not getattr(self, "central_bank_support_enabled", True):
+            return
+        corridor = getattr(self, "central_corridor", None) or base.CentralBankCorridor(
+            deposit_rate=max(0.0, self.base_rate - base.DAILY_CB_DEPOSIT_SPREAD),
+            lending_rate=self.base_rate + base.DAILY_FACILITY_SPREAD_DEFENSIVE,
+            base_rate=self.base_rate,
+        )
+        target_lcr = float(getattr(self, "policy_lcr_repair_target", 0.90))
+        cap_share = float(getattr(self, "policy_lcr_repair_cap_share", 0.35))
+        for i, bank in enumerate(self.banks):
+            if i == 0 or not bank.get("is_active", True):
+                continue
+            if self._bank_is_flow_frozen(i):
+                continue
+            if self._bank_lcr_value(bank) >= target_lcr:
+                continue
+            if self._bank_equity(bank) <= 0.0:
+                continue
+            if float(bank.get("capital_adequacy_ratio", 0.0)) < float(getattr(self, "policy_car_floor", 0.03)):
+                continue
+            lia = float(bank.get("current_liabilities", 0.0))
+            liq = float(bank.get("liquid_assets", 0.0))
+            outflow_rate = float(bank.get("outflow_rate", 0.4))
+            if lia <= 1e-9 or outflow_rate <= 1e-9:
+                continue
+            # Policy support is a loan, so it raises both liquid assets and liabilities.
+            denom = max(1e-6, 1.0 - target_lcr * outflow_rate)
+            amount = max(0.0, (target_lcr * outflow_rate * lia - liq) / denom)
+            amount = min(amount, cap_share * lia)
+            if amount <= 1e-6:
+                continue
+            injected = self._issue_central_bank_liquidity_support(
+                i,
+                amount,
+                step,
+                rate=corridor.lending_rate,
+                tenor=max(2, int(getattr(self, "cb_loan_tenor", 2))),
+                kind="lcr_repair_window",
+            )
+            if injected > 0.0:
+                bank["risk_appetite"] = float(bank.get("risk_appetite", 0.5)) * 0.85
+
+    def _liquidate_project_assets_for_cash(self, bank_idx: int, sale_amount: float) -> float:
+        if sale_amount <= 1e-9 or bank_idx >= len(self.project_book):
+            return 0.0
+        remaining_sale = float(sale_amount)
+        new_book = []
+        sold = 0.0
+        for loan in self.project_book[bank_idx]:
+            principal = float(getattr(loan, "principal", 0.0))
+            if principal <= 1e-9:
+                continue
+            if remaining_sale <= 1e-9:
+                new_book.append(loan)
+                continue
+            cut = min(principal, remaining_sale)
+            loan.principal = principal - cut
+            sold += cut
+            remaining_sale -= cut
+            if loan.principal > 1e-9:
+                new_book.append(loan)
+        self.project_book[bank_idx] = new_book
+        bank = self.banks[bank_idx]
+        bank["investment"]["projects"]["amount"] = max(
+            0.0,
+            float(bank["investment"]["projects"].get("amount", 0.0)) - sold,
+        )
+        cash = sold * (1.0 - float(getattr(self, "project_liquidation_haircut", 0.03)))
+        bank["liquid_assets"] = float(bank.get("liquid_assets", 0.0)) + cash
+        return cash
+
+    def _rebuild_low_lcr_liquidity_buffers(self, step: int) -> None:
+        target_lcr = float(getattr(self, "liquidity_rebuild_target", 0.90))
+        for i, bank in enumerate(self.banks):
+            if i == 0 or not bank.get("is_active", True):
+                continue
+            if self._bank_is_flow_frozen(i):
+                continue
+            lcr = self._bank_lcr_value(bank)
+            if lcr >= target_lcr:
+                continue
+
+            lia = float(bank.get("current_liabilities", 0.0))
+            if lia <= 1e-9:
+                continue
+            stress = float(np.clip((target_lcr - lcr) / max(target_lcr, 1e-9), 0.0, 1.0))
+
+            # Retained operating cashflow represents asset income not paid out while rebuilding liquidity.
+            cashflow_rate = (
+                float(getattr(self, "liquidity_rebuild_cashflow_bull", 0.0012))
+                if self.market_environment == "bull"
+                else float(getattr(self, "liquidity_rebuild_cashflow_bear", 0.0005))
+            )
+            retained_cash = cashflow_rate * lia * stress
+            bank["liquid_assets"] = float(bank.get("liquid_assets", 0.0)) + retained_cash
+            bank["core_capital"] = float(bank.get("core_capital", 0.0)) + 0.15 * retained_cash
+
+            # Terming out short funding lowers the LCR denominator without creating free cash.
+            termout = float(getattr(self, "short_liability_termout_rate", 0.006)) * lia * stress
+            bank["current_liabilities"] = max(0.0, lia - termout)
+            bank["termed_out_liabilities"] = float(bank.get("termed_out_liabilities", 0.0)) + termout
+
+            projects_amt = float(bank["investment"]["projects"].get("amount", 0.0))
+            if projects_amt > 1e-9:
+                sale = float(getattr(self, "project_liquidation_rate", 0.010)) * projects_amt * stress
+                self._liquidate_project_assets_for_cash(i, sale)
+
+            bank["risk_appetite"] = float(bank.get("risk_appetite", 0.5)) * (1.0 - 0.10 * stress)
 
     def simulate_step(self, step):
         try:
@@ -164,30 +338,36 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
                 self.market_duration_limit = base.random.randint(2, 5)
 
             if self.market_environment == "bull":
-                self.base_rate = max(0.01, self.base_rate + base.random.uniform(-0.005, 0.005))
-                self.long_term_rate = self.base_rate + base.random.uniform(0.01, 0.02)
+                self.base_rate = max(base.DAILY_POLICY_RATE_FLOOR, self.base_rate + base.random.uniform(-0.00001, 0.00001))
+                self.long_term_rate = self.base_rate + base.random.uniform(*base.DAILY_LONG_RATE_SPREAD_BULL)
                 market_volatility = base.random.uniform(10, 20) / 50
-                market_adjustment = base.random.uniform(0.05, 0.1)
+                market_adjustment = base.random.uniform(*base.DAILY_MARKET_ADJUSTMENT_BULL)
             else:
-                self.base_rate = min(0.06, self.base_rate + base.random.uniform(0.0, 0.01))
-                self.long_term_rate = self.base_rate + base.random.uniform(0.015, 0.025)
+                self.base_rate = min(base.DAILY_POLICY_RATE_CEILING, self.base_rate + base.random.uniform(0.0, 0.000015))
+                self.long_term_rate = self.base_rate + base.random.uniform(*base.DAILY_LONG_RATE_SPREAD_BEAR)
                 market_volatility = base.random.uniform(30, 50) / 50
-                market_adjustment = base.random.uniform(-0.15, -0.05)
+                market_adjustment = base.random.uniform(*base.DAILY_MARKET_ADJUSTMENT_BEAR)
 
             for i, bank in enumerate(banks):
                 bank["market_volatility"] = market_volatility
                 bank["loan_interest_rate"] = (
-                    self.base_rate + base.random.uniform(0.01, 0.03)
+                    self.base_rate + base.random.uniform(*base.DAILY_LOAN_SPREAD_BULL)
                     if self.market_environment == "bull"
-                    else self.base_rate + base.random.uniform(0.03, 0.05)
+                    else self.base_rate + base.random.uniform(*base.DAILY_LOAN_SPREAD_BEAR)
                 )
-                bank["investment_interest_rate"] = self.long_term_rate + base.random.uniform(0.005, 0.015)
+                bank["investment_interest_rate"] = self.long_term_rate + base.random.uniform(*base.DAILY_INVESTMENT_SPREAD_STEP)
                 bank.setdefault("risk_appetite", 0.5)
-                bank.setdefault("hurdle_rate", 0.04)
+                bank.setdefault("hurdle_rate", base.DAILY_HURDLE_RATE)
                 bank.setdefault("pending_endowment", 0.0)
-                bank["current_liabilities"] += 0.002 * bank["current_liabilities"]
+                bank["current_liabilities"] += base.DAILY_LIABILITY_GROWTH * bank["current_liabilities"]
                 if not self._bank_is_flow_frozen(i):
-                    bank["liquid_assets"] *= (1 + market_adjustment)
+                    bank_adjustment = market_adjustment
+                    if self.market_environment == "bear" and self._bank_lcr_value(bank) < self.liquidity_rebuild_target:
+                        bank_adjustment = max(
+                            bank_adjustment,
+                            float(getattr(self, "low_lcr_bear_shock_floor", -0.00015)),
+                        )
+                    bank["liquid_assets"] *= (1 + bank_adjustment)
                 bank["outflow_rate"] = (
                     0.2 if bank["type"] == "central"
                     else (
@@ -220,16 +400,21 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
                 self.roles = self.assign_roles_balanced(frac_lenders=0.5)
             else:
                 self.roles = (
-                    self.assign_roles_by_risk(car_cutoff=getattr(self, "car_cutoff", 0.08), lcr_cutoff=1.0)
+                    self.assign_roles_by_risk(
+                        car_cutoff=getattr(self, "car_cutoff", 0.08),
+                        lcr_cutoff=getattr(self, "lcr_cutoff", base.DAILY_INTERBANK_ROLE_LCR_CUTOFF),
+                    )
                     if hasattr(self, "assign_roles_by_risk")
                     else self.assign_roles()
                 )
 
             intentions = base.collect_intentions(
                 banks, n, self.roles, self.reserve_buffer,
-                self.base_rate, lcr_target=1.0,
+                self.base_rate,
+                lcr_target=float(getattr(self, "interbank_lcr_target", base.DAILY_INTERBANK_INTENTION_LCR_TARGET)),
                 last_avg_rate=getattr(self, "last_avg_rate", None),
             )
+            intentions = self._delever_low_lcr_intentions(intentions)
             if getattr(self, "danger_zone_enabled", False):
                 intentions = [
                     it for it in intentions
@@ -247,7 +432,7 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
             else:
                 self.last_avg_rate = None
 
-            maturity_periods = int(getattr(self, "interbank_contract_maturity", 2))
+            maturity_periods = int(getattr(self, "interbank_contract_maturity", base.DAILY_INTERBANK_CONTRACT_MATURITY))
             for t in trades:
                 if self._bank_is_flow_frozen(t.lender_idx) or self._bank_is_flow_frozen(t.borrower_idx):
                     continue
@@ -265,13 +450,18 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
                     and banks[i].get("is_active", True)
                     and not self._bank_is_flow_frozen(i)
                 ):
-                    self.invest_free_cash_into_projects(i, invest_frac=0.05)
+                    invest_frac = 0.05 * self._project_investment_scale(banks[i])
+                    if invest_frac > 1e-6:
+                        self.invest_free_cash_into_projects(i, invest_frac=invest_frac)
 
             for i in range(n):
                 if self._bank_is_flow_frozen(i):
                     continue
-                self.allocate_borrowed_to_projects(i)
+                if self._project_investment_scale(banks[i]) >= 0.50:
+                    self.allocate_borrowed_to_projects(i)
                 self.update_project_book(i)
+
+            self._rebuild_low_lcr_liquidity_buffers(step)
 
             base.update_bank_states_from_contract_book(banks, book, n, step)
             for idx, b in enumerate(banks):
@@ -288,6 +478,16 @@ class DangerZoneBankNetworkSimulator(base.BankNetworkSimulator):
                     b["liquid_assets"] + b["interbank_assets"] + 1e-9
                 )
                 b["capital_ratio_history"].append(cap_ratio)
+
+            self._repair_low_lcr_with_policy_support(step)
+
+            for idx, b in enumerate(banks):
+                b["liquidity_coverage_ratio"] = b["liquid_assets"] / (
+                    b["current_liabilities"] * b["outflow_rate"] + 1e-9
+                )
+                b["solvency_ratio"] = (b["core_capital"] + b["liquid_assets"]) / (
+                    b["current_liabilities"] + 1e-9
+                )
 
             if getattr(self, "danger_zone_enabled", False):
                 dz.update_bank_states(self, step)

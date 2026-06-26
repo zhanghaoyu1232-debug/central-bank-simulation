@@ -58,13 +58,73 @@ from collections import defaultdict
 from dataclasses import dataclass
 from PIL import Image
 
+from interbank_installment_rollover import (
+    ROLLOVER_BORROW_BLOCK_ALL,
+    ROLLOVER_BORROW_COUPON_CLEARED,
+    ROLLOVER_BORROW_PROJECT_ONLY,
+    ScheduleConfig,
+    compute_project_investment_borrow_cap,
+    effective_notional,
+    filter_borrowers_for_rollover_block,
+    rollover_borrow_quantity,
+    schedule_config_from_mapping,
+    settle_interbank_period,
+)
+
+# One period is one business day: keep policy/interbank rates in daily units.
+DAILY_POLICY_RATE_FLOOR = 0.00005
+DAILY_BULL_BASE_RATE = 0.00010
+DAILY_BEAR_BASE_RATE = 0.00020
+DAILY_POLICY_RATE_CEILING = 0.00025
+DAILY_LONG_RATE_SPREAD_BULL = (0.00003, 0.00007)
+DAILY_LONG_RATE_SPREAD_BEAR = (0.00004, 0.00008)
+DAILY_LOAN_SPREAD_BULL = (0.00003, 0.00008)
+DAILY_LOAN_SPREAD_BEAR = (0.00006, 0.00012)
+DAILY_INVESTMENT_RETURN_BULL = (-0.00006, 0.00030)
+DAILY_INVESTMENT_RETURN_BEAR = (-0.00032, 0.00010)
+DAILY_INVESTMENT_SPREAD_INIT = (0.00003, 0.00008)
+DAILY_INVESTMENT_SPREAD_STEP = (0.00002, 0.00006)
+DAILY_PROJECT_SPREAD = 0.00014
+DAILY_PROJECT_PD_DEFAULT = 0.00005
+DAILY_PROJECT_PD_RANGE = (0.00002, 0.00010)
+DAILY_PROJECT_MATURITY_DAYS = (1, 21)  # rng.integers high is exclusive; yields 1-20 steps
+DAILY_PROJECT_SHOCK_MEAN_BULL = -0.00002
+DAILY_PROJECT_SHOCK_STD_BULL = 0.00016
+DAILY_PROJECT_SHOCK_MEAN_BEAR = -0.00012
+DAILY_PROJECT_SHOCK_STD_BEAR = 0.00018
+DAILY_PROJECT_REALIZED_CLIP = (-0.00045, 0.00055)
+DAILY_PROJECT_RETURN_DEFAULT = 0.00008
+DAILY_PROJECT_RISK_DEFAULT = 0.00016
+DAILY_INTERBANK_ROLE_LCR_CUTOFF = 0.85
+DAILY_INTERBANK_CONTRACT_MATURITY = 10
+DAILY_RFQ_QUOTE_SPREAD = 0.00005
+DAILY_CB_DEPOSIT_SPREAD = 0.00002
+DAILY_CB_LENDING_SPREAD = 0.00005
+DAILY_CB_PENALTY_SPREAD = 0.00005
+DAILY_SOLVENCY_SUPPORT_SPREAD = 0.00003
+DAILY_POLICY_EASING_CRISIS = 0.00005
+DAILY_POLICY_EASING_DEFENSIVE = 0.000025
+DAILY_FACILITY_SPREAD_CRISIS = 0.00003
+DAILY_FACILITY_SPREAD_DEFENSIVE = 0.00004
+DAILY_FACILITY_SPREAD_HOLD = 0.00005
+DAILY_POLICY_RATE_MAX_STEP_CHANGE = 0.000025
+DAILY_POLICY_RATE_CHANGE_THRESHOLD = 0.000005
+DAILY_ROLLOVER_SPREAD_SHORT = 0.00002
+DAILY_ROLLOVER_SPREAD_LONG = 0.00008
+DAILY_ROLLOVER_SPREAD = 0.00005
+DAILY_HURDLE_RATE = 0.00012
+DAILY_PENALTY_RATE_CEILING = 0.00035
+DAILY_LIABILITY_GROWTH = 0.00002
+DAILY_MARKET_ADJUSTMENT_BULL = (0.0002, 0.0008)
+DAILY_MARKET_ADJUSTMENT_BEAR = (-0.0010, -0.0002)
+
 @dataclass
 class ProjectLoan:
     principal: float
     rate: float           # 每期利率
     maturity: int         # 期数
     age: int = 0
-    pd: float = 0.01      # 每期违约概率
+    pd: float = DAILY_PROJECT_PD_DEFAULT      # 每工作日违约概率
     lgd: float = 0.4      # 违约损失率
 
 
@@ -86,6 +146,20 @@ class Contract:
     rate: float
     created_step: int
     maturity_step: int
+    schedule_type: str = "bullet"
+    remaining_principal: float = 0.0
+    coupon_rate: float = 0.0
+    tenor_total: int = 1
+    periods_paid: int = 0
+    settlement_rate: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.schedule_type == "installment" and self.remaining_principal <= 0.0:
+            self.remaining_principal = float(self.principal)
+        if self.coupon_rate <= 0.0:
+            self.coupon_rate = float(self.rate)
+        if self.settlement_rate <= 0.0:
+            self.settlement_rate = float(self.rate)
 
 
 class ContractBook:
@@ -110,9 +184,61 @@ class ContractBook:
             rate=float(t.rate),
             created_step=int(t.step_executed),
             maturity_step=int(t.step_executed) + max(1, int(maturity_in_periods)),
+            settlement_rate=float(t.rate),
         )
         self.add_contract(c)
         return c
+
+    def add_from_trade_with_schedule(
+        self, t: Trade, borrower: dict, cfg: ScheduleConfig
+    ) -> tuple[Contract, dict]:
+        from interbank_installment_rollover import choose_trade_schedule
+
+        rollover_mode = str(getattr(cfg, "rollover_mode", "installment")).lower()
+        if rollover_mode in ("off", "none", "false", "0", "disabled", "bullet"):
+            dec = {
+                "schedule_type": "bullet",
+                "reason": "rollover_disabled",
+                "tenor": None,
+                "coupon_rate": None,
+                "settlement_rate": float(t.rate),
+                "maturity_in_periods": int(getattr(cfg, "bullet_maturity_periods", 1)),
+            }
+        else:
+            dec = choose_trade_schedule(float(t.amount), float(t.rate), borrower, cfg)
+        step = int(t.step_executed)
+        if dec["schedule_type"] == "installment":
+            tenor = int(dec["tenor"])
+            c = Contract(
+                contract_id=self._new_id(),
+                lender_idx=t.lender_idx,
+                borrower_idx=t.borrower_idx,
+                principal=float(t.amount),
+                rate=float(dec["settlement_rate"]),
+                created_step=step,
+                maturity_step=step + tenor,
+                schedule_type="installment",
+                remaining_principal=float(t.amount),
+                coupon_rate=float(dec["coupon_rate"]),
+                tenor_total=tenor,
+                periods_paid=0,
+                settlement_rate=float(dec["settlement_rate"]),
+            )
+        else:
+            mat = int(dec["maturity_in_periods"])
+            c = Contract(
+                contract_id=self._new_id(),
+                lender_idx=t.lender_idx,
+                borrower_idx=t.borrower_idx,
+                principal=float(t.amount),
+                rate=float(dec["settlement_rate"]),
+                created_step=step,
+                maturity_step=step + mat,
+                schedule_type="bullet",
+                settlement_rate=float(dec["settlement_rate"]),
+            )
+        self.add_contract(c)
+        return c, dec
 
     def contracts_due_at(self, step: int) -> list[Contract]:
         return [c for c in self.contracts if int(c.maturity_step) <= int(step)]
@@ -124,12 +250,34 @@ class ContractBook:
             pass
 
 
+def configure_simulation_features(
+    sim,
+    *,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
+):
+    """统一设置实验开关，供模型脚本和 compare 脚本复用。"""
+    sim.rollover_enabled = bool(rollover_enabled)
+    sim.policy_support_enabled = bool(policy_support_enabled)
+    sim.central_bank_support_enabled = bool(policy_support_enabled)
+    sim.rollover_mode = "installment" if rollover_enabled else "off"
+    sim.schedule_selection = "auto" if rollover_enabled else "bullet"
+    if not policy_support_enabled:
+        sim.solvency_support_enabled = False
+    sim.feature_config = {
+        "rollover_enabled": bool(rollover_enabled),
+        "policy_support_enabled": bool(policy_support_enabled),
+    }
+    return sim
+
+
 def aggregate_contracts_to_exposure_matrix_at_step(book: ContractBook, n: int, current_step: int) -> np.ndarray:
     L = np.zeros((n, n), dtype=float)
     for c in book.contracts:
         if int(c.maturity_step) > int(current_step):
-            L[c.lender_idx, c.borrower_idx] += float(c.principal)
-            L[c.borrower_idx, c.lender_idx] -= float(c.principal)
+            P = effective_notional(c)
+            L[c.lender_idx, c.borrower_idx] += P
+            L[c.borrower_idx, c.lender_idx] -= P
     return L
 
 
@@ -211,8 +359,9 @@ def total_notional_by_bank_from_book(book: ContractBook, n: int, current_step: i
     for c in book.contracts:
         if int(c.maturity_step) <= int(current_step):
             continue
-        assets[c.lender_idx] += float(c.principal)
-        liabilities[c.borrower_idx] += float(c.principal)
+        P = effective_notional(c)
+        assets[c.lender_idx] += P
+        liabilities[c.borrower_idx] += P
     return assets, liabilities
 
 
@@ -492,11 +641,11 @@ class BankNetworkSimulator:
         self.record_history = False
         self.market_environment = None
         self.market_volatility = 0.3
-        self.base_rate = 0.02
+        self.base_rate = DAILY_BULL_BASE_RATE
         self.clear_max_iter = 100
         self.clear_tol = 1e-3
         self.initial_base_rate = self.base_rate
-        self.long_term_rate = 0.03
+        self.long_term_rate = self.base_rate + DAILY_LONG_RATE_SPREAD_BULL[0]
         self.market_duration = 0
         self.market_duration_limit = random.randint(2, 3)
         self.prev_market_environment = None
@@ -540,10 +689,11 @@ class BankNetworkSimulator:
 
         # 让 CAR 阈值变成实例属性
         self.car_cutoff = 0.08
+        self.lcr_cutoff = DAILY_INTERBANK_ROLE_LCR_CUTOFF
 
         self.prev_exposure_matrix = None
         self.contract_book = ContractBook()
-        self.interbank_contract_maturity = 2
+        self.interbank_contract_maturity = DAILY_INTERBANK_CONTRACT_MATURITY
         self.central_corridor: CentralBankCorridor | None = None
         self._validate_book_sr = False
 
@@ -619,55 +769,68 @@ class BankNetworkSimulator:
         np.fill_diagonal(self.exposure_matrix, 0.0)
         return self.exposure_matrix
 
-    def _settle_due_interbank_contracts(self, step: int) -> list[int]:
-        """到期合约：流动性缺口预判 → 央行结算流动性支持 → Eisenberg–Noe 清算 → 移除合约。"""
+    def _schedule_cfg(self) -> ScheduleConfig:
+        return schedule_config_from_mapping({
+            "schedule_selection": getattr(self, "schedule_selection", "auto"),
+            "bullet_maturity_periods": getattr(self, "interbank_contract_maturity", 1),
+            "bullet_max_principal": getattr(self, "bullet_max_principal", 250_000.0),
+            "installment_min_principal": getattr(self, "installment_min_principal", 400_000.0),
+            "lcr_installment_cutoff": getattr(self, "lcr_installment_cutoff", 1.0),
+            "rollover_min_tenor": getattr(self, "rollover_min_tenor", 20),
+            "rollover_max_tenor": getattr(self, "rollover_max_tenor", 120),
+            "rollover_ref_small": getattr(self, "rollover_ref_small", 50_000.0),
+            "rollover_ref_large": getattr(self, "rollover_ref_large", 2_000_000.0),
+            "rollover_spread_short": getattr(self, "rollover_spread_short", DAILY_ROLLOVER_SPREAD_SHORT),
+            "rollover_spread_long": getattr(self, "rollover_spread_long", DAILY_ROLLOVER_SPREAD_LONG),
+            "rollover_mode": getattr(self, "rollover_mode", "installment"),
+        })
+
+    def _settle_interbank_installment_period(self, step: int) -> list[int]:
+        """分期 rollover（20–120 个工作日、先息后本）；bullet 到期后可续借为分期。"""
         step = int(step)
-        due = self.contract_book.contracts_due_at(step)
-        if not due:
-            self._refresh_exposure_from_contract_book(step)
-            return []
-
         n = self.num_banks
-        L_due = np.zeros((n, n), dtype=float)
-        for c in due:
-            total = float(c.principal) * (1.0 + float(c.rate))
-            L_due[c.lender_idx, c.borrower_idx] += total
-            L_due[c.borrower_idx, c.lender_idx] -= total
-
         corridor = getattr(self, "central_corridor", None) or CentralBankCorridor(
-            deposit_rate=float(self.base_rate) - 0.01,
-            lending_rate=float(self.base_rate) + 0.02,
+            deposit_rate=max(0.0, float(self.base_rate) - DAILY_CB_DEPOSIT_SPREAD),
+            lending_rate=float(self.base_rate) + DAILY_CB_LENDING_SPREAD,
             base_rate=float(self.base_rate),
         )
 
-        shortfall = liquidity_default_candidates(L_due, self.banks, n, use_core=False)
-        for i in range(n):
-            if i == 0 or not shortfall[i]:
-                continue
-            p_bar_i = float(np.maximum(-L_due[i], 0.0).sum())
-            need = max(0.0, p_bar_i - float(self.banks[i].get("liquid_assets", 0.0)))
-            if need > 1e-6:
-                amt = min(need, 2000.0)
-                self._issue_central_bank_liquidity_support(
-                    i,
-                    amt,
-                    step,
-                    rate=corridor.lending_rate,
-                    tenor=1,
-                    kind="settlement_backstop",
-                )
+        def _issue(i: int, amt: float, st: int) -> None:
+            self._issue_central_bank_liquidity_support(
+                i, amt, st, rate=corridor.lending_rate, tenor=1, kind="settlement_backstop",
+            )
 
-        _, failed = run_en_clearing_and_recovery(
-            L_due,
+        settle_result = settle_interbank_period(
+            self.contract_book,
             self.banks,
             n,
+            step,
+            cfg=self._schedule_cfg(),
+            liquidity_default_candidates=liquidity_default_candidates,
+            run_en_clearing_and_recovery=run_en_clearing_and_recovery,
+            issue_liquidity_support=_issue,
+            corridor_lending_rate=float(corridor.lending_rate),
             use_core=False,
-            max_iter=int(getattr(self, "clear_max_iter", 100)),
-            tol=float(getattr(self, "clear_tol", 1e-6)),
+            clear_max_iter=int(getattr(self, "clear_max_iter", 100)),
+            clear_tol=float(getattr(self, "clear_tol", 1e-6)),
+            verbose_rollover=bool(getattr(self, "verbose_rollover", True)),
+        )
+        from interbank_installment_rollover import (
+            active_installment_rollover_borrowers,
+            log_rollover_borrow_policy_note,
         )
 
-        for c in due:
-            self.contract_book.remove_contract(c)
+        self.rollover_coupon_due_borrowers = set(settle_result.coupon_due_borrowers)
+        self.rollover_coupon_cleared_borrowers = set(settle_result.coupon_cleared_borrowers)
+        self.rollover_blocked_borrowers = active_installment_rollover_borrowers(
+            self.contract_book, step
+        )
+        log_rollover_borrow_policy_note(
+            step,
+            getattr(self, "rollover_borrow_policy", ROLLOVER_BORROW_COUPON_CLEARED),
+            verbose=bool(getattr(self, "verbose_rollover", True)),
+        )
+        failed = settle_result.failed
 
         for i in failed:
             if 0 < i < len(self.banks):
@@ -676,6 +839,10 @@ class BankNetworkSimulator:
 
         self._refresh_exposure_from_contract_book(step)
         return failed
+
+    def _settle_due_interbank_contracts(self, step: int) -> list[int]:
+        """到期/分期结算（兼容旧调用名）。"""
+        return self._settle_interbank_installment_period(step)
 
 
     def initialize_network(self):
@@ -686,9 +853,10 @@ class BankNetworkSimulator:
         self.market_duration = 0
         self.market_duration_limit = getattr(self, 'market_duration_limit', random.randint(2, 5))
 
-        self.base_rate = 0.02 if self.market_environment == 'bull' else 0.04
+        self.base_rate = DAILY_BULL_BASE_RATE if self.market_environment == 'bull' else DAILY_BEAR_BASE_RATE
         self.initial_base_rate = self.base_rate
-        self.long_term_rate = self.base_rate + random.uniform(0.01, 0.02)
+        long_spread = DAILY_LONG_RATE_SPREAD_BULL if self.market_environment == 'bull' else DAILY_LONG_RATE_SPREAD_BEAR
+        self.long_term_rate = self.base_rate + random.uniform(*long_spread)
 
         # —— 初始化银行列表（项目资产为唯一非同业资产）——
         self.banks = []
@@ -702,15 +870,15 @@ class BankNetworkSimulator:
             # 环境相关参数
             if self.market_environment == 'bull':
                 cap_mul, liq_mul, lia_mul = random.uniform(1.1, 1.2), random.uniform(1.1, 1.2), random.uniform(0.8, 0.9)
-                inv_ret = random.uniform(0.05, 0.30)
+                inv_ret = random.uniform(*DAILY_INVESTMENT_RETURN_BULL)
                 vol     = random.uniform(10, 20) / 50
-                loan_rt = self.base_rate + random.uniform(0.01, 0.03)
+                loan_rt = self.base_rate + random.uniform(*DAILY_LOAN_SPREAD_BULL)
                 risk_app = random.uniform(0.7, 1.0) if t != 'central' else 0.3
             else:
                 cap_mul, liq_mul, lia_mul = random.uniform(0.8, 0.9), random.uniform(0.8, 0.9), random.uniform(1.1, 1.2)
-                inv_ret = random.uniform(-0.10, 0.10)
+                inv_ret = random.uniform(*DAILY_INVESTMENT_RETURN_BEAR)
                 vol     = random.uniform(30, 50) / 50
-                loan_rt = self.base_rate + random.uniform(0.03, 0.05)
+                loan_rt = self.base_rate + random.uniform(*DAILY_LOAN_SPREAD_BEAR)
                 risk_app = random.uniform(0.0, 0.3) if t != 'central' else 0.3
 
             # 核心资本 / 流动性（央行更充裕）
@@ -784,20 +952,24 @@ class BankNetworkSimulator:
             self.project_book[i].clear()
 
             if projects_amt > 1e-8:
+                initial_project_maturity = int(self.rng.integers(*DAILY_PROJECT_MATURITY_DAYS))
+                initial_project_age = int((i * 3) % max(1, initial_project_maturity))
                 if i == 0:
                     self.project_book[i].append(ProjectLoan(
                         principal=float(projects_amt),
                         rate=0.0,
-                        maturity=10**9,
+                        maturity=initial_project_maturity,
+                        age=initial_project_age,
                         pd=0.0,
                         lgd=0.0,
                     ))
                 else:
                     self.project_book[i].append(ProjectLoan(
                         principal=float(projects_amt),
-                        rate=float(self.long_term_rate + 0.01),
-                        maturity=10**9,
-                        pd=0.01,
+                        rate=float(self.long_term_rate + DAILY_PROJECT_SPREAD),
+                        maturity=initial_project_maturity,
+                        age=initial_project_age,
+                        pd=DAILY_PROJECT_PD_DEFAULT,
                         lgd=0.4,
                     ))
             else:
@@ -825,15 +997,21 @@ class BankNetworkSimulator:
                 "capital_ratio_history": [solv_ratio],
                 "risk_appetite": risk_app,
                 "market_volatility": vol,
+                "proj_mu": float(inv_ret),
+                "proj_sigma": float(
+                    self.rng.uniform(0.00010, 0.00020)
+                    if self.market_environment == "bull"
+                    else self.rng.uniform(0.00014, 0.00026)
+                ),
                 "loan_interest_rate": loan_rt,
-                "investment_interest_rate": self.long_term_rate + random.uniform(0.01, 0.03),
+                "investment_interest_rate": self.long_term_rate + random.uniform(*DAILY_INVESTMENT_SPREAD_INIT),
                 "outflow_rate": 0.2 if t == "central" else random.uniform(0.3, 0.5),
                 "investment": {"projects": {"amount": projects_amt, "risk_weight": 1.0}},
                 "capital_adequacy_ratio": self._safe_car_value(core, interbank_assets0, projects_amt),
                 "liquidity_coverage_ratio": liq / (lia * (0.2 if t == "central" else 0.4) + 1e-9),
                 "leverage_ratio": core / (liq + interbank_assets0 + 1e-9),
                 "pending_endowment": 0.0,
-                "hurdle_rate": 0.04,
+                "hurdle_rate": DAILY_HURDLE_RATE,
                 "defaulted": False,
                 "chi_role": 0,
                 "reservation_rate": loan_rt,
@@ -847,7 +1025,10 @@ class BankNetworkSimulator:
         self.contract_book = ContractBook()
         self.current_step = 0
         roles0 = (
-            self.assign_roles_by_risk(car_cutoff=getattr(self, 'car_cutoff', 0.08), lcr_cutoff=1.0)
+            self.assign_roles_by_risk(
+                car_cutoff=getattr(self, "car_cutoff", 0.08),
+                lcr_cutoff=getattr(self, "lcr_cutoff", DAILY_INTERBANK_ROLE_LCR_CUTOFF),
+            )
             if hasattr(self, 'assign_roles_by_risk') else self.assign_roles()
         )
 
@@ -882,11 +1063,11 @@ class BankNetworkSimulator:
         self._prev_stability_risk = None
         self._prev_stability_active = None
         self.policy_enabled = True
-        self.policy_rate_floor = 0.005
-        self.policy_rate_ceiling = 0.08
+        self.policy_rate_floor = DAILY_POLICY_RATE_FLOOR
+        self.policy_rate_ceiling = DAILY_POLICY_RATE_CEILING
         self.policy_rate_decision_interval = 4
-        self.policy_rate_max_step_change = 0.0025
-        self.policy_rate_change_threshold = 0.0010
+        self.policy_rate_max_step_change = DAILY_POLICY_RATE_MAX_STEP_CHANGE
+        self.policy_rate_change_threshold = DAILY_POLICY_RATE_CHANGE_THRESHOLD
         self.last_policy_rate_update_step = -10**9
         self.normal_reserve_requirement = 0.005 if self.free_market else 0.02
         self.reserve_buffer[:] = self.normal_reserve_requirement
@@ -897,7 +1078,7 @@ class BankNetworkSimulator:
         self.policy_lcr_target = 1.00
         self.policy_car_floor = 0.06
         self.cb_loan_tenor = 2
-        self.cb_penalty_spread = 0.015
+        self.cb_penalty_spread = DAILY_CB_PENALTY_SPREAD
         self.cb_max_support_share = 0.10
         self.cb_broad_support_share = 0.01
         self.cb_total_budget = 5000.0
@@ -909,7 +1090,7 @@ class BankNetworkSimulator:
         self.solvency_support_car_trigger = 0.08
         self.solvency_support_car_floor = 0.03
         self.solvency_support_equity_floor = -0.02
-        self.solvency_support_spread = 0.005
+        self.solvency_support_spread = DAILY_SOLVENCY_SUPPORT_SPREAD
         self.solvency_support_max_share = 0.08
         self.solvency_support_tenor = 4
         self.solvency_support_budget = 3000.0
@@ -917,16 +1098,37 @@ class BankNetworkSimulator:
         self.solvency_support_step_budget = 250.0
         self.solvency_support_step_remaining = self.solvency_support_step_budget
         self.policy_support_book = []
+        self.policy_support_book_outstanding_limit = self.cb_total_budget
+        self.policy_support_cooldown_steps = 4
+        self.policy_support_last_step_by_bank: dict[int, int] = {}
         self.policy_history = []
         self.policy_event_log = []
         self.export_policy_logs = getattr(self, "export_policy_logs", True)
         self.last_policy_note = "policy_init"
-        self.initial_state_export_prefix = "github_central_policy"
-        self.rollover_mode = "none"
-        self.interbank_contract_maturity = 2
+        self.initial_state_export_prefix = "centralized_central_policy"
+        self.rollover_blocked_borrowers: set[int] = set()
+        self.rollover_borrow_policy = ROLLOVER_BORROW_COUPON_CLEARED
+        self.rollover_coupon_cleared_borrowers: set[int] = set()
+        self.rollover_coupon_due_borrowers: set[int] = set()
+        self.rollover_mode = "installment"
+        self.schedule_selection = "auto"
+        self.bullet_max_principal = 250_000.0
+        self.installment_min_principal = 400_000.0
+        self.lcr_installment_cutoff = 1.0
+        self.rollover_spread_short = DAILY_ROLLOVER_SPREAD_SHORT
+        self.rollover_spread_long = DAILY_ROLLOVER_SPREAD_LONG
+        self.rollover_spread = DAILY_ROLLOVER_SPREAD
+        self.rollover_min_tenor = 20
+        self.rollover_max_tenor = 120
+        self.rollover_ref_small = 50_000.0
+        self.rollover_ref_large = 2_000_000.0
+        self.interbank_contract_maturity = DAILY_INTERBANK_CONTRACT_MATURITY
+        self.verbose_matching = getattr(self, "verbose_matching", True)
+        self.verbose_rollover = getattr(self, "verbose_rollover", True)
+        self.trade_schedule_log: list[dict] = []
         self.central_corridor = CentralBankCorridor(
-            deposit_rate=float(self.base_rate) - 0.01,
-            lending_rate=float(self.base_rate) + 0.02,
+            deposit_rate=max(0.0, float(self.base_rate) - DAILY_CB_DEPOSIT_SPREAD),
+            lending_rate=float(self.base_rate) + DAILY_CB_LENDING_SPREAD,
             base_rate=float(self.base_rate),
         )
         export_initial_bank_table(
@@ -956,8 +1158,9 @@ class BankNetworkSimulator:
         k_vol, k_act = 0.5, 0.2
         delta = -k_vol * (avg_vol - 0.5) + k_act * (active_ratio - 0.5)
 
-        base0 = getattr(self, "initial_base_rate", 0.02)
-        self.base_rate = float(np.clip(base0 + delta, 0.0, 0.10))
+        base0 = getattr(self, "initial_base_rate", DAILY_BULL_BASE_RATE)
+        delta *= DAILY_POLICY_RATE_MAX_STEP_CHANGE
+        self.base_rate = float(np.clip(base0 + delta, DAILY_POLICY_RATE_FLOOR, DAILY_POLICY_RATE_CEILING))
 
     def _bank_lcr(self, bank) -> float:
         liq = float(bank.get("liquid_assets", 0.0))
@@ -1018,7 +1221,7 @@ class BankNetworkSimulator:
         - defensive_easing: SR >= policy_sr_defensive_threshold（默认 0.18）
         - hold: 其余
         """
-        base_target = float(getattr(self, "base_rate", 0.02))
+        base_target = float(getattr(self, "base_rate", DAILY_BULL_BASE_RATE))
         reserve_target = float(getattr(self, "normal_reserve_requirement", 0.02))
         sr = float(obs.get("systemic_risk", 0.0))
         sr_crisis = float(getattr(self, "policy_sr_crisis_threshold", 0.34))
@@ -1026,20 +1229,20 @@ class BankNetworkSimulator:
 
         if sr >= sr_crisis:
             return CentralBankPolicyAction(
-                policy_rate=max(self.policy_rate_floor, base_target - 0.010),
+                policy_rate=max(self.policy_rate_floor, base_target - DAILY_POLICY_EASING_CRISIS),
                 reserve_requirement=max(0.005, reserve_target - 0.010),
                 liquidity_support_ratio=0.20,
                 broad_injection_ratio=0.015,
-                facility_spread=0.010,
+                facility_spread=DAILY_FACILITY_SPREAD_CRISIS,
                 note="crisis_easing",
             )
         if sr >= sr_defensive:
             return CentralBankPolicyAction(
-                policy_rate=max(self.policy_rate_floor, base_target - 0.005),
+                policy_rate=max(self.policy_rate_floor, base_target - DAILY_POLICY_EASING_DEFENSIVE),
                 reserve_requirement=max(0.0075, reserve_target - 0.005),
                 liquidity_support_ratio=0.12,
                 broad_injection_ratio=0.005,
-                facility_spread=0.0125,
+                facility_spread=DAILY_FACILITY_SPREAD_DEFENSIVE,
                 note="defensive_easing",
             )
         return CentralBankPolicyAction(
@@ -1047,7 +1250,7 @@ class BankNetworkSimulator:
             reserve_requirement=reserve_target,
             liquidity_support_ratio=0.04,
             broad_injection_ratio=0.0,
-            facility_spread=0.015,
+            facility_spread=DAILY_FACILITY_SPREAD_HOLD,
             note="hold",
         )
 
@@ -1101,7 +1304,7 @@ class BankNetworkSimulator:
                 open_loans.append({
                     "bank_idx": bank_idx,
                     "principal": rolled,
-                    "rate": min(rate + 0.01, 0.12),
+                    "rate": min(rate + DAILY_POLICY_EASING_DEFENSIVE, DAILY_PENALTY_RATE_CEILING),
                     "created_step": int(step),
                     "maturity_step": int(step) + 1,
                     "kind": "policy_rollover",
@@ -1138,6 +1341,8 @@ class BankNetworkSimulator:
         balance_key: str | None,
         support_type: str = "loan",
     ) -> float:
+        if not getattr(self, "central_bank_support_enabled", True):
+            return 0.0
         if bank_idx <= 0 or bank_idx >= len(self.banks):
             return 0.0
         amount = float(amount)
@@ -1146,6 +1351,11 @@ class BankNetworkSimulator:
         bank = self.banks[bank_idx]
         if not bank.get("is_active", True):
             return 0.0
+        last_support_step = self.policy_support_last_step_by_bank.get(int(bank_idx))
+        if last_support_step is not None:
+            cooldown = int(getattr(self, "policy_support_cooldown_steps", 0))
+            if int(step) - int(last_support_step) < cooldown:
+                return 0.0
         per_bank_cap = per_bank_cap_share * float(bank.get("current_liabilities", 0.0))
         if balance_key:
             room = max(0.0, per_bank_cap - float(bank.get(balance_key, 0.0)))
@@ -1161,10 +1371,14 @@ class BankNetworkSimulator:
                 float(getattr(self, "cb_step_budget_remaining", 0.0)),
                 float(getattr(self, "cb_remaining_budget", 0.0)),
             )
+        support_type = str(support_type).lower()
+        if support_type == "loan":
+            outstanding = sum(float(loan.get("principal", 0.0)) for loan in self.policy_support_book)
+            book_room = max(0.0, float(getattr(self, "policy_support_book_outstanding_limit", 0.0)) - outstanding)
+            budget_room = min(budget_room, book_room)
         amount = min(amount, room, budget_room)
         if amount <= 1e-9:
             return 0.0
-        support_type = str(support_type).lower()
         bank["liquid_assets"] = float(bank.get("liquid_assets", 0.0)) + amount
         if support_type == "loan":
             bank["current_liabilities"] = float(bank.get("current_liabilities", 0.0)) + amount
@@ -1181,6 +1395,7 @@ class BankNetworkSimulator:
         else:
             self.cb_remaining_budget = max(0.0, float(self.cb_remaining_budget) - amount)
             self.cb_step_budget_remaining = max(0.0, float(self.cb_step_budget_remaining) - amount)
+        self.policy_support_last_step_by_bank[int(bank_idx)] = int(step)
         self.cb_total_injected = float(getattr(self, "cb_total_injected", 0.0)) + amount
         if support_type == "loan":
             self.policy_support_book.append({
@@ -1254,13 +1469,13 @@ class BankNetworkSimulator:
             current_rate = float(np.clip(current_rate + move, self.policy_rate_floor, self.policy_rate_ceiling))
             self.last_policy_rate_update_step = int(step)
         self.base_rate = current_rate
-        self.long_term_rate = max(self.base_rate + 0.01, self.long_term_rate)
+        self.long_term_rate = max(self.base_rate + DAILY_LONG_RATE_SPREAD_BULL[0], self.long_term_rate)
         reserve_target = float(np.clip(action.reserve_requirement, 0.0, self.normal_reserve_requirement))
         self.reserve_buffer[:] = reserve_target
         if len(self.reserve_buffer) > 0:
             self.reserve_buffer[0] = 0.0
         self.central_corridor = CentralBankCorridor(
-            deposit_rate=self.base_rate - 0.01,
+            deposit_rate=max(0.0, self.base_rate - DAILY_CB_DEPOSIT_SPREAD),
             lending_rate=self.base_rate + float(action.facility_spread),
             base_rate=self.base_rate,
         )
@@ -1412,7 +1627,7 @@ class BankNetworkSimulator:
         return float(avail)
 
 
-    def assign_roles_by_risk(self, car_cutoff: float = 0.08, lcr_cutoff: float = 1.0):
+    def assign_roles_by_risk(self, car_cutoff: float = 0.08, lcr_cutoff: float = DAILY_INTERBANK_ROLE_LCR_CUTOFF):
         """
         根据风险指标给银行分配角色：
         +1 = lender, -1 = borrower, 0 = central/不参与撮合
@@ -1583,6 +1798,8 @@ class BankNetworkSimulator:
     def simulate_step(self, step):
         try:
             self.current_step = int(step)
+            if getattr(self, "exposure_matrix", None) is not None:
+                self.prev_exposure_matrix = self.exposure_matrix.copy()
             self._reset_policy_step_budget()
             self._run_central_bank_policy_cycle(step)
             self._settle_central_bank_loans(step)
@@ -1607,33 +1824,33 @@ class BankNetworkSimulator:
 
             # 环境对利率/波动的影响
             if self.market_environment == 'bull':
-                self.base_rate = max(0.01, self.base_rate + random.uniform(-0.005, 0.005))
-                self.long_term_rate = self.base_rate + random.uniform(0.01, 0.02)
+                self.base_rate = max(DAILY_POLICY_RATE_FLOOR, self.base_rate + random.uniform(-0.00001, 0.00001))
+                self.long_term_rate = self.base_rate + random.uniform(*DAILY_LONG_RATE_SPREAD_BULL)
                 market_volatility = random.uniform(10, 20) / 50
-                market_adjustment = random.uniform(0.05, 0.1)
+                market_adjustment = random.uniform(*DAILY_MARKET_ADJUSTMENT_BULL)
             else:
-                self.base_rate = min(0.06, self.base_rate + random.uniform(0.0, 0.01))
-                self.long_term_rate = self.base_rate + random.uniform(0.015, 0.025)
+                self.base_rate = min(DAILY_POLICY_RATE_CEILING, self.base_rate + random.uniform(0.0, 0.000015))
+                self.long_term_rate = self.base_rate + random.uniform(*DAILY_LONG_RATE_SPREAD_BEAR)
                 market_volatility = random.uniform(30, 50) / 50
-                market_adjustment = random.uniform(-0.15, -0.05)
+                market_adjustment = random.uniform(*DAILY_MARKET_ADJUSTMENT_BEAR)
 
             # B) 银行逐家处理（仅项目投资）
             for i, bank in enumerate(self.banks):
                 bank['market_volatility'] = market_volatility
                 bank['loan_interest_rate'] = (
-                    self.base_rate + random.uniform(0.01, 0.03)
+                    self.base_rate + random.uniform(*DAILY_LOAN_SPREAD_BULL)
                     if self.market_environment == 'bull'
-                    else self.base_rate + random.uniform(0.03, 0.05)
+                    else self.base_rate + random.uniform(*DAILY_LOAN_SPREAD_BEAR)
                 )
-                bank['investment_interest_rate'] = self.long_term_rate + random.uniform(0.005, 0.015)
+                bank['investment_interest_rate'] = self.long_term_rate + random.uniform(*DAILY_INVESTMENT_SPREAD_STEP)
 
                 bank.setdefault('risk_appetite', 0.5)
-                bank.setdefault('hurdle_rate', 0.04)
+                bank.setdefault('hurdle_rate', DAILY_HURDLE_RATE)
                 bank.setdefault('pending_endowment', 0.0)
 
                 
 
-                bank['current_liabilities'] += 0.002 * bank['current_liabilities']
+                bank['current_liabilities'] += DAILY_LIABILITY_GROWTH * bank['current_liabilities']
                 bank['liquid_assets'] *= (1 + market_adjustment)
 
                 bank['outflow_rate'] = (
@@ -1671,8 +1888,8 @@ class BankNetworkSimulator:
             else:
                 if hasattr(self, 'assign_roles_by_risk'):
                     self.roles = self.assign_roles_by_risk(
-                        car_cutoff=getattr(self, 'car_cutoff', 0.08),
-                        lcr_cutoff=1.0
+                        car_cutoff=getattr(self, "car_cutoff", 0.08),
+                        lcr_cutoff=getattr(self, "lcr_cutoff", DAILY_INTERBANK_ROLE_LCR_CUTOFF),
                     )
                 else:
                     self.roles = self.assign_roles()
@@ -1757,7 +1974,7 @@ class BankNetworkSimulator:
                     self.all_default_step = int(step)
                     print(f"[ALL DEFAULT] step={self.all_default_step} (all non-central banks defaulted)")
             self._update_network_stability(step, risk)
-            self.maybe_save_network_snapshot(step, risk, tag="github", edge_quantile=0.0)
+            self.maybe_save_network_snapshot(step, risk, tag="centralized", edge_quantile=0.0)
             return risk
 
         except Exception as e:
@@ -1783,7 +2000,7 @@ class BankNetworkSimulator:
 
         pairs = []
         for li, i in enumerate(lenders):
-            rate_i = float(self.banks[i].get("loan_interest_rate", 0.02))
+            rate_i = float(self.banks[i].get("loan_interest_rate", DAILY_BULL_BASE_RATE))
             for bj, j in enumerate(borrowers):
                 if i == j:
                     continue
@@ -1864,12 +2081,20 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
 
     lenders = [i for i in range(n) if roles[i] == +1 and self.banks[i].get("is_active", True)]
     borrowers = [i for i in range(n) if roles[i] == -1 and self.banks[i].get("is_active", True)]
+    step_match = int(getattr(self, "current_step", 0))
+    blocked_rb = getattr(self, "rollover_blocked_borrowers", None)
+    borrow_policy = getattr(self, "rollover_borrow_policy", ROLLOVER_BORROW_COUPON_CLEARED)
+    borrowers, _ = filter_borrowers_for_rollover_block(
+        borrowers,
+        self.contract_book,
+        step_match,
+        precomputed_blocked=blocked_rb,
+        borrow_policy=borrow_policy,
+    )
 
     if len(lenders) == 0 or len(borrowers) == 0:
         print(f"[debug] No matching: lenders={len(lenders)}, borrowers={len(borrowers)}")
         return
-    lenders = [i for i in range(n) if roles[i] == +1 and self.banks[i].get("is_active", True)]
-    borrowers = [i for i in range(n) if roles[i] == -1 and self.banks[i].get("is_active", True)]
 
 # ===== 诊断：角色分布 =====
     print(f"[diag] lenders={len(lenders)} borrowers={len(borrowers)}")
@@ -1925,7 +2150,25 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
         K = K_EXPAND_BEAR if self.market_environment == "bear" else K_EXPAND_BULL
         extra_need = K * lia * phi * (spread_pos / (loan_rt + 1e-9))
 
-        need_raw = gap_j + extra_need
+        phi_b = float(self.banks[j].get("risk_appetite", 0.5))
+        need_liq_j = min(gap_j + 0.08 * lia * phi_b, 0.5 * lia)
+        need_inv_j = compute_project_investment_borrow_cap(
+            self.banks[j],
+            float(self.base_rate),
+            last_avg_rate=getattr(self, "last_avg_rate", None),
+        )
+        need_raw = rollover_borrow_quantity(
+            j,
+            self.banks[j],
+            float(self.base_rate),
+            need_liq_j,
+            need_inv_j,
+            rollover_blocked=blocked_rb,
+            coupon_cleared=getattr(self, "rollover_coupon_cleared_borrowers", None),
+            coupon_due=getattr(self, "rollover_coupon_due_borrowers", None),
+            borrow_policy=borrow_policy,
+            last_avg_rate=getattr(self, "last_avg_rate", None),
+        )
 
     # ===== borrower-specific cap =====
         size_cap_j = 0.5 * lia
@@ -2046,10 +2289,10 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
 
         # 4.1 定义 reservation rates（你可按论文 Step2 改，这里给一个可运行的默认）
         # lender 的最低可接受利率
-        r_min = {i: float(self.banks[i].get("loan_interest_rate", 0.02)) for i in lenders}
+        r_min = {i: float(self.banks[i].get("loan_interest_rate", DAILY_BULL_BASE_RATE)) for i in lenders}
         # borrower 的最高可接受利率（默认：当前 loan_rate + 一个容忍利差）
-        rmax_spread = float(ctx.get("rmax_spread", 0.08))
-        r_max = {j: float(self.banks[j].get("loan_interest_rate", 0.02)) + rmax_spread for j in borrowers}
+        rmax_spread = float(ctx.get("rmax_spread", DAILY_RFQ_QUOTE_SPREAD))
+        r_max = {j: float(self.banks[j].get("loan_interest_rate", DAILY_BULL_BASE_RATE)) + rmax_spread for j in borrowers}
 
         # 4.2 构造 feasible pairs & surplus
         feasible_pairs = []
@@ -2179,9 +2422,17 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
     actual_lent = 0.0
     deg = deg_init.copy()
 
+    rollover_blocked = getattr(self, "rollover_blocked_borrowers", set())
+
     for lender_idx, borrower_idx, amount in plan:
         amt = float(amount)
         if amt <= eps:
+            continue
+        if (
+            borrower_idx in rollover_blocked
+            and str(getattr(self, "rollover_borrow_policy", ROLLOVER_BORROW_COUPON_CLEARED)).lower()
+            == ROLLOVER_BORROW_BLOCK_ALL
+        ):
             continue
 
         if deg[lender_idx] >= self.max_degree or deg[borrower_idx] >= self.max_degree:
@@ -2211,7 +2462,7 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
             self.banks[borrower_idx].get("liquid_assets", 0.0)
         ) + amt
         self.borrowed_cash[borrower_idx] += amt
-        rate = float(self.banks[lender_idx].get("loan_interest_rate", getattr(self, "base_rate", 0.02)))
+        rate = float(self.banks[lender_idx].get("loan_interest_rate", getattr(self, "base_rate", DAILY_BULL_BASE_RATE)))
         trade = Trade(
             lender_idx=int(lender_idx),
             borrower_idx=int(borrower_idx),
@@ -2219,10 +2470,23 @@ def _sparse_bipartite_update(self, roles: np.ndarray) -> None:
             rate=rate,
             step_executed=step,
         )
-        self.contract_book.add_from_trade(
-            trade,
-            maturity_in_periods=int(getattr(self, "interbank_contract_maturity", 2)),
+        _, dec = self.contract_book.add_from_trade_with_schedule(
+            trade, self.banks[borrower_idx], self._schedule_cfg(),
         )
+        log = getattr(self, "trade_schedule_log", None)
+        if log is not None:
+            log.append({
+                "step": int(step),
+                "lender": int(lender_idx),
+                "borrower": int(borrower_idx),
+                "amount": float(amt),
+                "trade_rate": float(rate),
+                "schedule_type": dec["schedule_type"],
+                "reason": dec.get("reason", ""),
+                "tenor": dec.get("tenor"),
+                "coupon_rate": dec.get("coupon_rate"),
+                "settlement_rate": dec.get("settlement_rate"),
+            })
 
         supply[li] -= amt
         remaining_need[borrower_idx] -= amt
@@ -2344,8 +2608,8 @@ def to_pyg_graph(self, y=None, use_prev: bool = False):
     # ===== 1) node features =====
     env = {
         "market_environment": getattr(self, "market_environment", "bull"),
-        "base_rate": getattr(self, "base_rate", 0.02),
-        "long_term_rate": getattr(self, "long_term_rate", 0.03),
+        "base_rate": getattr(self, "base_rate", DAILY_BULL_BASE_RATE),
+        "long_term_rate": getattr(self, "long_term_rate", DAILY_BULL_BASE_RATE + DAILY_LONG_RATE_SPREAD_BULL[0]),
     }
     x = torch.tensor([_bank_to_feature_vec_15(b, env) for b in self.banks], dtype=torch.float)
 
@@ -2416,7 +2680,7 @@ def settle_interbank_and_clear(self, use_core=False):
         return
 
     # 把一期利息并入应付（简单用 base_rate 或者你也可换成 borrower/lender rate）
-    r_ib = float(getattr(self, "base_rate", 0.02))
+    r_ib = float(getattr(self, "base_rate", DAILY_BULL_BASE_RATE))
     Lbar_int = Lbar * (1.0 + r_ib)
 
     # 构造带利息的 L_int（仍保持 antisymmetric）
@@ -2483,7 +2747,7 @@ def build_candidate_graphs_for_pairs(base_graph, pairs, amounts):
 
 def decide_investment(self, bank):
     exp_proj = self.long_term_rate
-    rho   = bank.get('hurdle_rate', 0.04)
+    rho   = bank.get('hurdle_rate', DAILY_HURDLE_RATE)
     alpha = bank.get('risk_appetite', 0.5)
     liq   = bank['liquid_assets']
     invest_amt = alpha * liq if exp_proj > rho else 0.0
@@ -2508,9 +2772,9 @@ def invest_free_cash_into_projects(self, i, invest_frac: float | None = None):
     rng = getattr(self, "rng", np.random.default_rng(DEFAULT_RANDOM_SEED))
     loan = ProjectLoan(
         principal=float(invest),
-        rate=float(self.long_term_rate + 0.03),
-        maturity=int(rng.integers(4, 12)),
-        pd=float(rng.uniform(0.005, 0.02)),
+        rate=float(self.long_term_rate + DAILY_PROJECT_SPREAD),
+        maturity=int(rng.integers(*DAILY_PROJECT_MATURITY_DAYS)),
+        pd=float(rng.uniform(*DAILY_PROJECT_PD_RANGE)),
         lgd=float(rng.uniform(0.30, 0.60)),
     )
     self.project_book[i].append(loan)
@@ -2518,7 +2782,7 @@ def invest_free_cash_into_projects(self, i, invest_frac: float | None = None):
 
 
 
-def allocate_borrowed_to_projects(self, i, spread: float = 0.03):
+def allocate_borrowed_to_projects(self, i, spread: float = DAILY_PROJECT_SPREAD):
     """借入现金已入账；这里只把项目份额从 liquid 转入项目台账。"""
     budget = float(self.borrowed_cash[i])
     if budget <= 1e-8:
@@ -2534,8 +2798,8 @@ def allocate_borrowed_to_projects(self, i, spread: float = 0.03):
         loan = ProjectLoan(
             principal=float(per),
             rate=float(self.long_term_rate + spread),
-            maturity=int(rng.integers(4, 12)),
-            pd=float(rng.uniform(0.005, 0.02)),
+            maturity=int(rng.integers(*DAILY_PROJECT_MATURITY_DAYS)),
+            pd=float(rng.uniform(*DAILY_PROJECT_PD_RANGE)),
             lgd=float(rng.uniform(0.30, 0.60)),
         )
         self.project_book[i].append(loan)
@@ -2543,16 +2807,20 @@ def allocate_borrowed_to_projects(self, i, spread: float = 0.03):
 
     self.borrowed_cash[i] = 0.0
 
+def _daily_project_shock_params(market_environment: str) -> tuple[float, float]:
+    if market_environment == "bull":
+        return DAILY_PROJECT_SHOCK_MEAN_BULL, DAILY_PROJECT_SHOCK_STD_BULL
+    return DAILY_PROJECT_SHOCK_MEAN_BEAR, DAILY_PROJECT_SHOCK_STD_BEAR
+
+
 def update_project_book(self, i):
     """
     项目台账：每期计息 / 负收益 / 到期回款 / 违约扣损。
     """
     bank = self.banks[i]
 
-    if self.market_environment == 'bull':
-        mu_shock, sigma_shock = 0.00, 0.03
-    else:
-        mu_shock, sigma_shock = -0.03, 0.06
+    mu_shock, sigma_shock = _daily_project_shock_params(self.market_environment)
+    clip_lo, clip_hi = DAILY_PROJECT_REALIZED_CLIP
 
     new_book = []
     projects_amt = 0.0
@@ -2566,7 +2834,7 @@ def update_project_book(self, i):
 
         rng = getattr(self, "rng", np.random.default_rng(DEFAULT_RANDOM_SEED))
         shock = rng.normal(mu_shock, sigma_shock)
-        realized_r = loan.rate + shock
+        realized_r = float(np.clip(loan.rate + shock, clip_lo, clip_hi))
         cashflow = loan.principal * realized_r
 
         bank['liquid_assets'] += cashflow
@@ -3417,7 +3685,7 @@ def predict_and_regulate(model, matcher, simulator, num_steps=5, seq_len=5, draw
         simulator.gnn_context = {
             "matcher": matcher,
             "device": device,
-            "rmax_spread": 0.05,   # borrower cap = loan_rate + 0.02（按论文）
+            "rmax_spread": DAILY_RFQ_QUOTE_SPREAD,   # borrower cap: daily quote spread
             "beta_amt": 0.05,      # 金额偏好（可调）
         }
 
@@ -3471,15 +3739,246 @@ def predict_and_regulate(model, matcher, simulator, num_steps=5, seq_len=5, draw
 
 # ========= 下面保持你原始结构（到你粘贴处为止） =========
 
-def run_sensitivity_analysis():
+_PLOT_SIMULATION_BATCH = None
+
+
+@dataclass
+class StepSnapshot:
+    step: int
+    banks: list
+    exposure_matrix: np.ndarray
+    policy_support_total: float = 0.0
+    solvency_support_total: float = 0.0
+
+
+@dataclass
+class RecordedRun:
+    seed: int
+    theta_policy: float
+    snapshots: list[StepSnapshot]
+    rollover_enabled: bool = True
+    policy_support_enabled: bool = True
+
+
+@dataclass
+class SimulationPlotBatch:
+    T: int
+    N: int
+    B: float
+    sigma: float
+    theta_policy: float
+    runs: list[RecordedRun]
+    rollover_enabled: bool = True
+    policy_support_enabled: bool = True
+
+
+def set_plot_simulation_batch(batch: SimulationPlotBatch | None) -> SimulationPlotBatch | None:
+    global _PLOT_SIMULATION_BATCH
+    _PLOT_SIMULATION_BATCH = batch
+    return batch
+
+
+def get_plot_simulation_batch() -> SimulationPlotBatch | None:
+    return _PLOT_SIMULATION_BATCH
+
+
+def _resolve_plot_batch(batch: SimulationPlotBatch | None = None) -> SimulationPlotBatch | None:
+    return batch if batch is not None else _PLOT_SIMULATION_BATCH
+
+
+class _SnapshotSimView:
+    def __init__(self, snap: StepSnapshot):
+        self.banks = snap.banks
+        self.num_banks = len(snap.banks)
+        self.exposure_matrix = snap.exposure_matrix
+        self.current_step = int(snap.step)
+
+
+def record_simulation_run(
+    T: int,
+    seed: int,
+    *,
+    theta_policy: float = 0.08,
+    N: int = 30,
+    B: float = 300.0,
+    sigma: float = 0.3,
+    matcher=None,
+    device=None,
+    stop_on_network_stable: bool = False,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
+) -> RecordedRun:
+    T = min(int(T), MAX_PLOT_STEPS)
+    sim = BankNetworkSimulator(num_banks=N, max_steps=T, B=B, sigma=sigma, seed=int(seed))
+    configure_simulation_features(
+        sim,
+        rollover_enabled=rollover_enabled,
+        policy_support_enabled=policy_support_enabled,
+    )
+    sim._save_network_snapshot = False
+    sim.export_policy_logs = False
+    sim.car_cutoff = float(theta_policy)
+    sim.initialize_network()
+
+    snapshots: list[StepSnapshot] = []
+    for s in range(T):
+        if matcher is not None:
+            sim.gnn_context = {
+                "matcher": matcher,
+                "device": device,
+                "rmax_spread": DAILY_RFQ_QUOTE_SPREAD,
+                "beta_amt": 0.05,
+            }
+        else:
+            sim.gnn_context = None
+        sim.simulate_step(s)
+        last_policy = sim.policy_history[-1] if getattr(sim, "policy_history", None) else {}
+        snapshots.append(
+            StepSnapshot(
+                step=int(s),
+                banks=[deepcopy(b) for b in sim.banks],
+                exposure_matrix=np.array(sim.exposure_matrix, dtype=float, copy=True),
+                policy_support_total=float(last_policy.get("support_total", 0.0)),
+                solvency_support_total=float(last_policy.get("solvency_support_total", 0.0)),
+            )
+        )
+        if stop_on_network_stable and sim.network_stable_step is not None:
+            break
+    return RecordedRun(
+        seed=int(seed),
+        theta_policy=float(theta_policy),
+        snapshots=snapshots,
+        rollover_enabled=bool(rollover_enabled),
+        policy_support_enabled=bool(policy_support_enabled),
+    )
+
+
+def run_simulation_plot_batch(
+    T: int = 800,
+    nsim: int = 20,
+    *,
+    theta_policy: float = 0.08,
+    N: int = 30,
+    B: float = 300.0,
+    sigma: float = 0.3,
+    seed0: int = DEFAULT_RANDOM_SEED,
+    matcher=None,
+    device=None,
+    stop_on_network_stable: bool = False,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
+) -> SimulationPlotBatch:
+    T = min(int(T), MAX_PLOT_STEPS)
+    rng = np.random.default_rng(int(seed0))
+    runs: list[RecordedRun] = []
+    for _ in range(int(nsim)):
+        sim_seed = int(rng.integers(0, 2**32 - 1))
+        runs.append(
+            record_simulation_run(
+                T,
+                sim_seed,
+                theta_policy=float(theta_policy),
+                N=N,
+                B=B,
+                sigma=sigma,
+                matcher=matcher,
+                device=device,
+                stop_on_network_stable=stop_on_network_stable,
+                rollover_enabled=rollover_enabled,
+                policy_support_enabled=policy_support_enabled,
+            )
+        )
+    batch = SimulationPlotBatch(
+        T=int(T),
+        N=int(N),
+        B=float(B),
+        sigma=float(sigma),
+        theta_policy=float(theta_policy),
+        runs=runs,
+        rollover_enabled=bool(rollover_enabled),
+        policy_support_enabled=bool(policy_support_enabled),
+    )
+    print(
+        f"[plot-batch] recorded nsim={len(runs)} T={T} "
+        f"theta_policy={float(theta_policy):.2f} "
+        f"rollover={'on' if rollover_enabled else 'off'} "
+        f"support={'on' if policy_support_enabled else 'off'} "
+        f"avg_steps={np.mean([len(r.snapshots) for r in runs]):.1f}"
+    )
+    return batch
+
+
+def score_recorded_run(
+    run: RecordedRun,
+    weights=(0.5, 0.3, 0.2),
+    theta_measure: float = 0.08,
+) -> dict[str, np.ndarray]:
+    sr_list, fr_list, cbs_list, cgr_list = [], [], [], []
+    for snap in run.snapshots:
+        view = _SnapshotSimView(snap)
+        sr, fr, cbs, cgr = _components_from_state(
+            view, weights=weights, theta=float(theta_measure)
+        )
+        sr_list.append(sr)
+        fr_list.append(fr)
+        cbs_list.append(cbs)
+        cgr_list.append(cgr)
+    return {
+        "sr": np.asarray(sr_list, dtype=float),
+        "fr": np.asarray(fr_list, dtype=float),
+        "cbs": np.asarray(cbs_list, dtype=float),
+        "cgr": np.asarray(cgr_list, dtype=float),
+    }
+
+
+def score_batch_mean_components(
+    batch: SimulationPlotBatch,
+    weights=(0.5, 0.3, 0.2),
+    theta_measure: float = 0.08,
+) -> dict[str, np.ndarray]:
+    sr_mat, fr_mat, cbs_mat, cgr_mat = [], [], [], []
+    for run in batch.runs:
+        comp = score_recorded_run(run, weights=weights, theta_measure=float(theta_measure))
+        sr_mat.append(comp["sr"])
+        fr_mat.append(comp["fr"])
+        cbs_mat.append(comp["cbs"])
+        cgr_mat.append(comp["cgr"])
+    return {
+        "sr": _nanmean_variable_length(sr_mat),
+        "fr": _nanmean_variable_length(fr_mat),
+        "cbs": _nanmean_variable_length(cbs_mat),
+        "cgr": _nanmean_variable_length(cgr_mat),
+    }
+
+
+def policy_support_mean_series(batch: SimulationPlotBatch) -> dict[str, np.ndarray]:
+    liquidity = []
+    solvency = []
+    total = []
+    for run in batch.runs:
+        liq = np.asarray([s.policy_support_total for s in run.snapshots], dtype=float)
+        sol = np.asarray([s.solvency_support_total for s in run.snapshots], dtype=float)
+        liquidity.append(liq)
+        solvency.append(sol)
+        total.append(liq + sol)
+    return {
+        "liquidity": _nanmean_variable_length(liquidity),
+        "solvency": _nanmean_variable_length(solvency),
+        "total": _nanmean_variable_length(total),
+    }
+
+
+def run_sensitivity_analysis(batch: SimulationPlotBatch | None = None):
     """
     生成 4 张单图 + 1 张 2×2 面板。
     Δt 采用“相对平台阈值”：t@0.9·S∞ − t@0.5·S∞。
+    若传入 batch：仅在固定 policy 轨迹上重算 W / θ_measure。
     """
     import numpy as np
     import matplotlib.pyplot as plt
     from datetime import datetime
 
+    batch = _resolve_plot_batch(batch)
     plt.close('all')
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -3536,6 +4035,17 @@ def run_sensitivity_analysis():
         return auc01, dt
 
     def run_series(weights, theta_measure, theta_policy=0.08, N=30, T=T_steps, B=300, sigma=0.3):
+        if batch is not None:
+            if float(theta_policy) != float(batch.theta_policy):
+                print(
+                    f"[plot-batch] sensitivity: ignore theta_policy={theta_policy:.2f}, "
+                    f"use batch policy={batch.theta_policy:.2f}"
+                )
+            comp = score_batch_mean_components(
+                batch, weights=weights, theta_measure=float(theta_measure)
+            )
+            return np.asarray(comp["sr"], dtype=float)
+
         sim = BankNetworkSimulator(num_banks=N, max_steps=T, B=B, sigma=sigma)
 
         # ★ policy θ：影响角色分配/网络生成（sim.assign_roles_by_risk 用的 car_cutoff）
@@ -3652,12 +4162,19 @@ def generate_network_snapshots(
     show=True,
     matcher=None,
     device=None,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
 ):
     """先跑完模拟并缓存指定 step 的状态，再统一生成网络图。"""
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     sim = BankNetworkSimulator(max_steps=max(steps) + 1)
+    configure_simulation_features(
+        sim,
+        rollover_enabled=rollover_enabled,
+        policy_support_enabled=policy_support_enabled,
+    )
     sim._save_network_snapshot = False
     sim.export_policy_logs = False
     sim.initialize_network()
@@ -3669,7 +4186,7 @@ def generate_network_snapshots(
             sim.gnn_context = {
                 "matcher": matcher,
                 "device": device,
-                "rmax_spread": 0.05,
+                "rmax_spread": DAILY_RFQ_QUOTE_SPREAD,
                 "beta_amt": 0.05,
             }
         else:
@@ -3814,26 +4331,40 @@ def _scenario_stable_for_sweep(
     return sim._sweep_stable_count >= window
 
 
-def plot_baseline_trajectory(T=800, weights=(0.5, 0.3, 0.2), theta=0.08, seed=None):
+def plot_baseline_trajectory(
+    T=800,
+    weights=(0.5, 0.3, 0.2),
+    theta=0.08,
+    seed=None,
+    batch: SimulationPlotBatch | None = None,
+):
     """
     画基准情景的 SR & 组成（FR/CBS/CGR）随时间的轨迹图。
     """
     T = min(int(T), MAX_PLOT_STEPS)
-    run_seed = DEFAULT_RANDOM_SEED if seed is None else set_random_seed(seed)
+    batch = _resolve_plot_batch(batch)
+    if batch is not None:
+        comp = score_batch_mean_components(batch, weights=weights, theta_measure=float(theta))
+        sr_list = list(comp["sr"])
+        fr_list = list(comp["fr"])
+        cbs_list = list(comp["cbs"])
+        cgr_list = list(comp["cgr"])
+    else:
+        run_seed = DEFAULT_RANDOM_SEED if seed is None else set_random_seed(seed)
 
-    sim = BankNetworkSimulator(max_steps=T, seed=run_seed)
-    sim._save_network_snapshot = False
-    sim.export_policy_logs = False
-    sim.car_cutoff = theta
-    sim.initialize_network()
+        sim = BankNetworkSimulator(max_steps=T, seed=run_seed)
+        sim._save_network_snapshot = False
+        sim.export_policy_logs = False
+        sim.car_cutoff = theta
+        sim.initialize_network()
 
-    sr_list, fr_list, cbs_list, cgr_list = [], [], [], []
-    for s in range(T):
-        sim.simulate_step(s)
-        sr, fr, cbs, cgr = _components_from_state(sim, weights=weights, theta=theta)
-        sr_list.append(sr); fr_list.append(fr); cbs_list.append(cbs); cgr_list.append(cgr)
-        if _scenario_stable_for_sweep(sim, sr, window=50, risk_tol=0.01):
-            break
+        sr_list, fr_list, cbs_list, cgr_list = [], [], [], []
+        for s in range(T):
+            sim.simulate_step(s)
+            sr, fr, cbs, cgr = _components_from_state(sim, weights=weights, theta=theta)
+            sr_list.append(sr); fr_list.append(fr); cbs_list.append(cbs); cgr_list.append(cgr)
+            if _scenario_stable_for_sweep(sim, sr, window=50, risk_tol=0.01):
+                break
 
     xs = np.arange(1, len(sr_list) + 1)
 
@@ -3860,11 +4391,12 @@ def plot_baseline_trajectory(T=800, weights=(0.5, 0.3, 0.2), theta=0.08, seed=No
     return out
 
 
-def plot_scenario_comparison(T=800):
+def plot_scenario_comparison(T=800, batch: SimulationPlotBatch | None = None):
     """
     生成情景对比折线图 + t@0.5 竖线。
     """
     T = min(int(T), MAX_PLOT_STEPS)
+    batch = _resolve_plot_batch(batch)
     scenarios = [
         ("Baseline",             (0.5, 0.3, 0.2), 0.08, "-"),
         ("High Failure Weight",  (0.7, 0.18, 0.12), 0.08, "-"),
@@ -3872,6 +4404,12 @@ def plot_scenario_comparison(T=800):
     ]
 
     def _run_series(weights, theta, T):
+        if batch is not None:
+            comp = score_batch_mean_components(
+                batch, weights=weights, theta_measure=float(theta)
+            )
+            return np.asarray(comp["sr"], dtype=float)
+
         sim = BankNetworkSimulator(max_steps=T)
         sim._save_network_snapshot = False
         sim.export_policy_logs = False
@@ -3978,16 +4516,29 @@ def _run_series_mean_components(
     B=300,
     sigma=0.3,
     nsim=20,
-    seed0=DEFAULT_RANDOM_SEED
+    seed0=DEFAULT_RANDOM_SEED,
+    batch: SimulationPlotBatch | None = None,
 ):
     """
     跑 nsim 次，返回每期 SR/FR/CBS/CGR 的均值轨迹（长度 T）。
     theta_measure: 只影响“评分口径”（CBS/CGR 的阈值）
     theta_policy : 影响仿真过程（角色分配/网络生成用的 car_cutoff）
+    batch: 若提供则只重算分量，不重跑仿真。
     """
     import numpy as np
 
     T = min(int(T), MAX_PLOT_STEPS)
+    batch = _resolve_plot_batch(batch)
+    if batch is not None:
+        if float(theta_policy) != float(batch.theta_policy):
+            print(
+                f"[plot-batch] score: use recorded policy={batch.theta_policy:.2f} "
+                f"(requested policy={float(theta_policy):.2f} ignored)"
+            )
+        return score_batch_mean_components(
+            batch, weights=weights, theta_measure=float(theta_measure)
+        )
+
     key = (
         tuple(float(x) for x in weights),
         float(theta_measure),
@@ -4049,22 +4600,36 @@ def _run_series_mean_components(
     return out
 
 
+def _theta_sweep_pairwise_spread(curves: list[np.ndarray]) -> float:
+    valid = [np.asarray(y, dtype=float) for y in curves if len(y) > 0]
+    if len(valid) < 2:
+        return 0.0
+    min_len = min(len(y) for y in valid)
+    mat = np.vstack([y[:min_len] for y in valid])
+    return float(np.nanmax(np.nanmax(mat, axis=0) - np.nanmin(mat, axis=0)))
+
+
 def plot_theta_sweep_lines(
-    T=100,
+    T=800,
     weights=(0.5, 0.3, 0.2),
-    nsim=50,
+    nsim=20,
     theta_policy_fixed=None,
     theta_min=0.04,
-    theta_max=0.40,
+    theta_max=0.16,
     n_theta=10,
     track="sr",
     baseline_theta=0.08,
     title_prefix="CAR-threshold sweep",
     output_prefix="theta_sweep_lines",
+    batch: SimulationPlotBatch | None = None,
+    show_delta_panel: bool = True,
+    annotate_ends: bool = True,
+    print_spread: bool = True,
 ):
     """
     固定 W，遍历 θ，每个 θ 一条曲线；baseline θ 加粗+白描边。
     轨迹可因「网络稳定」提前结束，横轴按实际长度绘制。
+    若传入 batch：仅在固定 policy 轨迹上扫 θ_measure。
     """
     import numpy as np
     import matplotlib.pyplot as plt
@@ -4074,9 +4639,20 @@ def plot_theta_sweep_lines(
     track = str(track).lower()
     assert track in ("sr", "cbs", "fr", "cgr")
     T = min(int(T), MAX_PLOT_STEPS)
+    batch = _resolve_plot_batch(batch)
 
     baseline_theta = float(baseline_theta)
     theta_grid = np.round(np.linspace(theta_min, theta_max, n_theta), 2)
+
+    if batch is not None and theta_policy_fixed is None:
+        print(
+            "[plot-batch] shared batch: policy θ fixed at "
+            f"{batch.theta_policy:.2f}; curves vary θ_measure only"
+        )
+        title_prefix = (
+            f"{title_prefix} (shared sim, policy θ={batch.theta_policy:.2f})"
+        )
+        theta_policy_fixed = float(batch.theta_policy)
 
     curves = []
     for th in theta_grid:
@@ -4087,34 +4663,16 @@ def plot_theta_sweep_lines(
             theta_policy=theta_policy,
             T=T,
             nsim=nsim,
+            batch=batch,
         )
         curves.append(np.asarray(comp[track], float))
 
-    plt.close("all")
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    cmap = mpl.colormaps["plasma"].reversed()
-    norm = mpl.colors.Normalize(vmin=float(theta_grid.min()), vmax=float(theta_grid.max()))
-
-    for th, y in zip(theta_grid, curves):
-        if len(y) == 0:
-            continue
-        xs = np.arange(1, len(y) + 1)
-        is_base = np.isclose(th, baseline_theta, atol=1e-12)
-        lw = 3.0 if is_base else 1.6
-        z = 10 if is_base else 2
-        a = 1.0 if is_base else 0.90
-        line, = ax.plot(xs, y, lw=lw, alpha=a, color=cmap(norm(th)), zorder=z)
-        if is_base:
-            line.set_path_effects([
-                pe.Stroke(linewidth=6.5, foreground="white", alpha=0.95),
-                pe.Normal(),
-            ])
-            line.set_label(rf"baseline $\theta={baseline_theta:.2f}$")
-
-    sm = mpl.cm.ScalarMappable(cmap=cmap, norm=norm)
-    cbar = fig.colorbar(sm, ax=ax, pad=0.01)
-    cbar.set_label(r"$\theta$ (CAR cutoff)")
+    if print_spread:
+        spread = _theta_sweep_pairwise_spread(curves)
+        print(
+            f"[theta-sweep] track={track} max pairwise spread={spread:.2e} "
+            f"(≈0 表示曲线数值重合)"
+        )
 
     ylab = {
         "sr": "Systemic Risk (SR)",
@@ -4124,20 +4682,89 @@ def plot_theta_sweep_lines(
     }[track]
     ttl = {"sr": "SR", "cbs": "CBS", "fr": "FR", "cgr": "CGR"}[track]
 
+    base_idx = int(np.argmin(np.abs(theta_grid - baseline_theta)))
+    y_ref = curves[base_idx] if len(curves[base_idx]) > 0 else None
+
+    plt.close("all")
+    if show_delta_panel and y_ref is not None and len(y_ref) > 1:
+        fig, (ax, ax_delta) = plt.subplots(
+            2, 1, figsize=(12, 9), sharex=True, gridspec_kw={"height_ratios": [2.2, 1.0]}
+        )
+    else:
+        fig, ax = plt.subplots(figsize=(12, 7))
+        ax_delta = None
+
+    cmap = mpl.colormaps["plasma"].reversed()
+    norm = mpl.colors.Normalize(vmin=float(theta_grid.min()), vmax=float(theta_grid.max()))
+    linestyles = ["-", "--", "-.", ":", (0, (3, 1, 1, 1))]
+
+    for i, (th, y) in enumerate(zip(theta_grid, curves)):
+        if len(y) == 0:
+            continue
+        xs = np.arange(1, len(y) + 1)
+        is_base = np.isclose(th, baseline_theta, atol=1e-12)
+        color = cmap(norm(th))
+        ls = linestyles[i % len(linestyles)]
+        lw = 3.0 if is_base else 1.8
+        z = 10 if is_base else 2
+        a = 1.0 if is_base else 0.92
+        line, = ax.plot(xs, y, lw=lw, alpha=a, color=color, linestyle=ls, zorder=z)
+        if is_base:
+            line.set_path_effects([
+                pe.Stroke(linewidth=6.5, foreground="white", alpha=0.95),
+                pe.Normal(),
+            ])
+            line.set_label(rf"baseline $\theta={baseline_theta:.2f}$")
+
+        if ax_delta is not None and y_ref is not None:
+            n = min(len(y), len(y_ref))
+            delta = np.asarray(y[:n], float) - np.asarray(y_ref[:n], float)
+            ax_delta.plot(
+                xs[:n], delta, lw=1.4 if not is_base else 2.2, alpha=a,
+                color=color, linestyle=ls, zorder=z,
+            )
+
+        if annotate_ends:
+            ax.annotate(
+                rf"$\theta={th:.2f}$",
+                xy=(xs[-1], y[-1]),
+                xytext=(6, 6 + (i % 5) * 10),
+                textcoords="offset points",
+                fontsize=7,
+                color=color,
+                alpha=0.9,
+                clip_on=True,
+            )
+
+    sm = mpl.cm.ScalarMappable(cmap=cmap, norm=norm)
+    cbar = fig.colorbar(sm, ax=ax, pad=0.01)
+    cbar.set_label(r"$\theta$ (CAR cutoff)")
+
     ax.set_title(rf"{title_prefix} — {ttl}$_t$ for each $\theta$  $(\mathbf{{W}}={weights})$")
-    ax.set_xlabel("Time Step")
     ax.set_ylabel(ylab)
     ax.grid(True, alpha=0.4)
-    ax.legend(loc="best")
+    if any(np.isclose(theta_grid, baseline_theta, atol=1e-12)):
+        ax.legend(loc="best")
+
+    if ax_delta is not None:
+        ax_delta.axhline(0.0, color="0.45", lw=1.0, ls=":")
+        ax_delta.set_ylabel(rf"$\Delta${ttl} vs $\theta={baseline_theta:.2f}$")
+        ax_delta.grid(True, alpha=0.35)
+        ax.set_xlabel("")
+        ax_delta.set_xlabel("Time Step")
+    else:
+        ax.set_xlabel("Time Step")
 
     policy_tag = (
         "policy-follow"
         if theta_policy_fixed is None
         else f"policy-fixed{float(theta_policy_fixed):.2f}"
     )
+    delta_tag = "_delta" if ax_delta is not None else ""
     out = (
         FIG_DIR
-        / f"{output_prefix}_{track}_theta{theta_min:.2f}-{theta_max:.2f}_n{n_theta}_baseline{baseline_theta:.2f}_{policy_tag}.png"
+        / f"{output_prefix}_{track}_theta{theta_min:.2f}-{theta_max:.2f}_n{n_theta}"
+        f"_baseline{baseline_theta:.2f}_{policy_tag}{delta_tag}.png"
     )
     fig.savefig(str(out), dpi=300, bbox_inches="tight")
     plt.show()
@@ -4153,23 +4780,58 @@ def plot_theta_measure_sweep_lines(
     theta_policy=0.08,
     theta_min=0.04,
     theta_max=0.16,
-    n_theta=7,
+    n_theta=10,
     track="sr",
+    batch: SimulationPlotBatch | None = None,
 ):
     """固定政策阈值，仅改变 SR 测度口径中的 θ。"""
+    batch = _resolve_plot_batch(batch)
+    policy = float(batch.theta_policy) if batch is not None else float(theta_policy)
     return plot_theta_sweep_lines(
         T=T,
         weights=weights,
         nsim=nsim,
-        theta_policy_fixed=float(theta_policy),
+        theta_policy_fixed=policy,
         theta_min=theta_min,
         theta_max=theta_max,
         n_theta=n_theta,
         track=track,
-        baseline_theta=float(theta_policy),
-        title_prefix=f"Pure measurement sensitivity (policy theta fixed at {float(theta_policy):.2f})",
+        baseline_theta=policy,
+        title_prefix=f"Pure measurement sensitivity (policy theta fixed at {policy:.2f})",
         output_prefix="theta_measure_sweep_lines",
+        batch=batch,
+        show_delta_panel=True,
+        annotate_ends=True,
     )
+
+
+def plot_theta_sweep_component_grid(
+    T=800,
+    weights=(0.5, 0.3, 0.2),
+    nsim=20,
+    theta_policy=0.08,
+    theta_min=0.04,
+    theta_max=0.16,
+    n_theta=10,
+    batch: SimulationPlotBatch | None = None,
+):
+    """SR/CBS/FR/CGR 四张 θ sweep 图；分量图往往比重叠的 SR 更容易分辨。"""
+    outs = []
+    for track in ("sr", "cbs", "fr", "cgr"):
+        outs.append(
+            plot_theta_measure_sweep_lines(
+                T=T,
+                weights=weights,
+                nsim=nsim,
+                theta_policy=theta_policy,
+                theta_min=theta_min,
+                theta_max=theta_max,
+                n_theta=n_theta,
+                track=track,
+                batch=batch,
+            )
+        )
+    return outs
 
 
 def plot_theta_policy_scenario_lines(
@@ -4178,11 +4840,18 @@ def plot_theta_policy_scenario_lines(
     nsim=20,
     theta_min=0.04,
     theta_max=0.16,
-    n_theta=7,
+    n_theta=10,
     track="sr",
     baseline_theta=0.08,
+    batch: SimulationPlotBatch | None = None,
 ):
     """θ 同时影响角色分配（政策）与风险测度。"""
+    batch = _resolve_plot_batch(batch)
+    if batch is not None:
+        print(
+            "[plot-batch] policy scenario plot uses shared batch "
+            "(measurement-only θ sweep on fixed policy path)"
+        )
     return plot_theta_sweep_lines(
         T=T,
         weights=weights,
@@ -4195,6 +4864,7 @@ def plot_theta_policy_scenario_lines(
         baseline_theta=baseline_theta,
         title_prefix="Policy-threshold scenario comparison",
         output_prefix="theta_policy_scenario_lines",
+        batch=batch,
     )
 
 
@@ -4216,7 +4886,12 @@ def _run_series_mean(weights, theta_measure, theta_policy=0.08, T=50, N=30, B=30
     return np.asarray(comp[track], dtype=float)
 
 
-def plot_weight_sweep_lines(T=800, theta=0.08, nsim=50):
+def plot_weight_sweep_lines(
+    T=800,
+    theta=0.08,
+    nsim=50,
+    batch: SimulationPlotBatch | None = None,
+):
     """
     固定 θ=0.08，遍历 w1∈{0.10,...,0.90}（保持 w2:w3=3:2 归一化），
     每个 w1 一条 SR(t) 曲线。颜色映射 = w1。
@@ -4227,6 +4902,7 @@ def plot_weight_sweep_lines(T=800, theta=0.08, nsim=50):
     import matplotlib as mpl
 
     T = min(int(T), MAX_PLOT_STEPS)
+    batch = _resolve_plot_batch(batch)
     w1_grid = np.round(np.linspace(0.10, 0.90, 9), 2)
 
     # 先算出所有曲线
@@ -4237,7 +4913,13 @@ def plot_weight_sweep_lines(T=800, theta=0.08, nsim=50):
         delta = w1 - w1_base
         w2 = w2_base - delta * (w2_base / den)
         w3 = w3_base - delta * (w3_base / den)
-        sr = _run_series_mean((w1, w2, w3), theta, T=T, nsim=nsim)
+        if batch is not None:
+            comp = score_batch_mean_components(
+                batch, weights=(w1, w2, w3), theta_measure=float(theta)
+            )
+            sr = comp["sr"]
+        else:
+            sr = _run_series_mean((w1, w2, w3), theta, T=T, nsim=nsim)
         sr_curves.append(np.asarray(sr, float))
 
     plt.close('all')
@@ -4300,6 +4982,8 @@ def generate_gnn_panel(
     matcher=None,
     device=None,
     show=True,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
 ):
     """
     先跑完整段模拟并缓存指定 step 的状态，再统一出网络图和拼接 panel。
@@ -4310,6 +4994,8 @@ def generate_gnn_panel(
         show=False,
         matcher=matcher,
         device=device,
+        rollover_enabled=rollover_enabled,
+        policy_support_enabled=policy_support_enabled,
     )
     if not paths:
         print("[warn] no images collected for panel.")
@@ -4368,7 +5054,7 @@ def _init_network_snapshot_schedule(self, block_size=50, start_step=1, seed=42):
         s += block_size
 
 
-def maybe_save_network_snapshot(self, step, risk, tag="github", edge_quantile=0.0):
+def maybe_save_network_snapshot(self, step, risk, tag="centralized", edge_quantile=0.0):
     try:
         if not getattr(self, "_save_network_snapshot", False):
             return
@@ -4429,7 +5115,7 @@ def run_and_report(T=200, matcher=None, device=None):
             sim.gnn_context = {
                 "matcher": matcher,
                 "device": device,
-                "rmax_spread": 0.05,
+                "rmax_spread": DAILY_RFQ_QUOTE_SPREAD,
                 "beta_amt": 0.05,
             }
         else:
@@ -4443,58 +5129,181 @@ def run_and_report(T=200, matcher=None, device=None):
 
     return sim
 
-if __name__ == "__main__":
-    import torch
-    t0 = time.perf_counter()
-    t_all = time.perf_counter()
+def configure_figure_output(fig_dir: Path | None = None) -> Path:
+    """可选：将标准结果图写入独立子目录（对比脚本用）。"""
+    global FIG_DIR
+    if fig_dir is not None:
+        FIG_DIR = Path(fig_dir)
+        FIG_DIR.mkdir(parents=True, exist_ok=True)
+    return FIG_DIR
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # ① 先构建数据集
-    dataset = BankContagionDataset(num_simulations=1000, num_timesteps=5)
-
-    # ② 训练 GNN+LSTM 模型（用于风险预测/监管建议）
-    model = train_model(dataset, num_epochs=10, batch_size=32)
-    model = model.to(device).eval()
-
-    # ③ 训练 matcher（用于撮合 a_ij）
-    matcher = train_matcher_from_dataset(
-        dataset, epochs=3, lr=1e-4, neg_ratio=1.0, batch_graphs=64
+def export_compare_artifacts(
+    plot_batch,
+    fig_dir: Path,
+    *,
+    weights=(0.5, 0.3, 0.2),
+    theta: float = 0.08,
+    theta_min: float = 0.04,
+    theta_max: float = 0.16,
+    n_theta: int = 10,
+) -> Path:
+    """导出对比脚本所需的 JSON（无需再 import 本模块）。"""
+    fig_dir = Path(fig_dir)
+    comp = score_batch_mean_components(
+        plot_batch, weights=weights, theta_measure=float(theta)
     )
-    matcher = matcher.to(device).eval()
+    baseline = {k: [float(x) for x in comp[k]] for k in ("sr", "fr", "cbs", "cgr")}
+    support = policy_support_mean_series(plot_batch)
 
-    # ④ 只生成 matcher(GNN) 的网络图：先跑模拟缓存快照，最后一次性出 panel
-    generate_gnn_panel(
-        steps=(10, 20, 30, 40, 50, 100, 150, 200),
-        tag="gnnbase",
+    theta_grid = np.round(np.linspace(theta_min, theta_max, n_theta), 2)
+    sr_curves = []
+    for th in theta_grid:
+        c = _run_series_mean_components(
+            weights=weights,
+            theta_measure=float(th),
+            theta_policy=float(plot_batch.theta_policy),
+            T=plot_batch.T,
+            nsim=len(plot_batch.runs),
+            batch=plot_batch,
+        )
+        sr_curves.append([float(x) for x in c["sr"]])
+
+    payload = {
+        "features": {
+            "rollover_enabled": bool(getattr(plot_batch, "rollover_enabled", True)),
+            "policy_support_enabled": bool(getattr(plot_batch, "policy_support_enabled", True)),
+        },
+        "weights": list(weights),
+        "theta": float(theta),
+        "baseline": baseline,
+        "policy_support": {
+            key: [float(x) for x in values]
+            for key, values in support.items()
+        },
+        "theta_sweep": {
+            "theta_grid": [float(x) for x in theta_grid],
+            "sr_curves": sr_curves,
+        },
+    }
+    out = fig_dir / "compare_artifacts.json"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"Saved compare artifacts: {out}")
+    return out
+
+
+def run_standard_figure_pipeline(
+    matcher=None,
+    device=None,
+    *,
+    dataset=None,
+    train_models: bool = True,
+    T: int = 800,
+    nsim: int = 20,
+    fig_dir: Path | None = None,
+    network_steps=(10, 20, 30, 40, 50, 100, 150, 200),
+    network_tag: str = "centralized",
+    show: bool = False,
+    rollover_enabled: bool = True,
+    policy_support_enabled: bool = True,
+) -> dict:
+    """标准结果图：network panel、θ sweep、baseline trajectory。"""
+    import torch
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    configure_figure_output(fig_dir)
+
+    if train_models or matcher is None:
+        if dataset is None:
+            dataset = BankContagionDataset(num_simulations=1000, num_timesteps=5)
+        model = train_model(dataset, num_epochs=10, batch_size=32)
+        model = model.to(device).eval()
+        matcher = train_matcher_from_dataset(
+            dataset, epochs=3, lr=1e-4, neg_ratio=1.0, batch_graphs=64
+        )
+        matcher = matcher.to(device).eval()
+
+    network_panel = generate_gnn_panel(
+        steps=network_steps,
+        tag=network_tag,
         matcher=matcher,
         device=device,
-        show=True,
+        show=show,
+        rollover_enabled=rollover_enabled,
+        policy_support_enabled=policy_support_enabled,
     )
 
-    # ⑤（可选）预测 + 建议（关掉网络图输出，避免多出“normal”图）
-    #sim = BankNetworkSimulator(num_banks=30, max_steps=200)
-    #predict_and_regulate(model, matcher, sim, num_steps=200, seq_len=5, draw_net=False)
+    plot_batch = run_simulation_plot_batch(
+        T=T,
+        nsim=nsim,
+        theta_policy=0.08,
+        N=30,
+        B=300.0,
+        sigma=0.3,
+        seed0=DEFAULT_RANDOM_SEED,
+        matcher=matcher,
+        device=device,
+        rollover_enabled=rollover_enabled,
+        policy_support_enabled=policy_support_enabled,
+    )
+    set_plot_simulation_batch(plot_batch)
 
-    # ⑤ run_and_report + 耗时测量
-    sim = run_and_report(T=200, matcher=matcher, device=device)
-    if sim.network_stable_step is not None:
-        print(f"\n[SUMMARY] NETWORK_STABLE happened at step={sim.network_stable_step}")
-    else:
-        print(f"\n[SUMMARY] No NETWORK_STABLE within T=200")
-    if sim.all_default_step is not None:
-        print(f"[SUMMARY] ALL_DEFAULT diagnostic step={sim.all_default_step}")
+    theta_sweep = plot_theta_measure_sweep_lines(
+        T=T, weights=(0.5, 0.3, 0.2), batch=plot_batch
+    )
+    baseline = plot_baseline_trajectory(
+        T=T, weights=(0.5, 0.3, 0.2), theta=0.08, batch=plot_batch
+    )
+    compare_artifacts = export_compare_artifacts(plot_batch, FIG_DIR)
 
-    sr_list, elapsed = measure_single_run_time(T=50, num_banks=30)
-    print(f"Total time: {time.perf_counter() - t0:.4f} seconds")
-    print(f"[time] TOTAL: {time.perf_counter()-t_all:.2f}s")
+    return {
+        "fig_dir": FIG_DIR,
+        "network_panel": network_panel,
+        "theta_sweep": theta_sweep,
+        "baseline_trajectory": baseline,
+        "compare_artifacts": compare_artifacts,
+        "plot_batch": plot_batch,
+        "matcher": matcher,
+        "device": device,
+    }
 
-    # ⑥ 最后统一生成所有图（弹窗+保存）
-    plot_scenario_comparison(T=800)
-    run_sensitivity_analysis()
-    plot_weight_sweep_lines(T=800, theta=0.08, nsim=20)
-    plot_theta_sweep_lines(T=800, weights=(0.5, 0.3, 0.2), nsim=20)
-    plot_theta_measure_sweep_lines(T=800, weights=(0.5, 0.3, 0.2), nsim=20)
-    plot_theta_policy_scenario_lines(T=800, weights=(0.5, 0.3, 0.2), nsim=20)
-    plot_baseline_trajectory(T=800, weights=(0.5, 0.3, 0.2), theta=0.08)
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Centralized baseline 标准结果图")
+    parser.add_argument("--fig-dir", type=Path, default=None, help="图输出目录")
+    parser.add_argument("--show", action="store_true", help="显示 matplotlib 窗口")
+    parser.add_argument("--T", type=int, default=800, help="仿真步数")
+    parser.add_argument("--nsim", type=int, default=20, help="plot batch 轨迹数")
+    parser.add_argument("--no-train", action="store_true", help="跳过 GNN/matcher 训练")
+    parser.add_argument("--no-rollover", action="store_true", help="关闭同业 rollover 分期续借")
+    parser.add_argument("--no-policy-support", action="store_true", help="关闭央行 liquidity/capital support 注入")
+    args = parser.parse_args()
+
+    try:
+        import torch
+    except ImportError:
+        print("错误：未安装 PyTorch。请运行：")
+        print(f"  {sys.executable} -m pip install torch torch-geometric")
+        raise SystemExit(1)
+
+    t_all = time.perf_counter()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    run_standard_figure_pipeline(
+        device=device,
+        train_models=not args.no_train,
+        T=args.T,
+        nsim=args.nsim,
+        fig_dir=args.fig_dir,
+        network_tag="centralized",
+        show=args.show,
+        rollover_enabled=not args.no_rollover,
+        policy_support_enabled=not args.no_policy_support,
+    )
+    print(f"[time] TOTAL: {time.perf_counter() - t_all:.2f}s")
 

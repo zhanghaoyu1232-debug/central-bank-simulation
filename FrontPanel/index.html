@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bank Simulation Front Panel</title>
+  <link rel="stylesheet" href="style.css?v=scenario-front-panel-v18">
+</head>
+<body>
+  <main class="layout">
+    <header class="topbar">
+      <div>
+        <p class="label">Front Panel</p>
+        <h1>Bank Simulation Dashboard</h1>
+        <p class="description">Run the local Python model and simulate systemic risk over time for a custom bank network.</p>
+      </div>
+      <div class="status" id="statusBox">
+        <span class="status-light" id="statusLight"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <section class="card controls">
+      <label>
+        Simulation steps
+        <input id="stepsInput" type="number" min="1" max="500" value="100">
+      </label>
+      <label>
+        Number of banks
+        <span class="number-control">
+          <button id="decreaseBanksButton" class="step-button" type="button">-</button>
+          <input id="banksInput" type="text" inputmode="numeric" pattern="[0-9]*" value="30">
+          <button id="increaseBanksButton" class="step-button" type="button">+</button>
+        </span>
+      </label>
+      <label>
+        Seed
+        <input id="seedInput" type="number" value="2026">
+      </label>
+      <label>
+        Market structure
+        <select id="marketModeInput">
+          <option value="decentralized" selected>Decentralized RFQ</option>
+          <option value="centralized">Centralized clearing</option>
+        </select>
+      </label>
+      <label class="switch-control">
+        <input id="rolloverInput" type="checkbox" checked>
+        <span>Rollover enabled</span>
+      </label>
+      <label class="switch-control">
+        <input id="policySupportInput" type="checkbox" checked>
+        <span>Policy support enabled</span>
+      </label>
+      <label class="switch-control">
+        <input id="dangerZoneInput" type="checkbox" checked>
+        <span>Danger-zone forbearance</span>
+      </label>
+      <button id="runButton" type="button">Run Simulation</button>
+      <p class="control-note">Banks: 5-100. Steps: 1-500. Danger-zone suspension is available for decentralized RFQ runs.</p>
+    </section>
+
+    <section class="metrics">
+      <article class="card metric">
+        <span>Systemic Risk</span>
+        <strong id="riskValue">--</strong>
+      </article>
+      <article class="card metric">
+        <span>Active Banks</span>
+        <strong id="activeValue">--</strong>
+      </article>
+      <article class="card metric">
+        <span>Suspended</span>
+        <strong id="suspendedValue">--</strong>
+      </article>
+      <article class="card metric">
+        <span>Warning</span>
+        <strong id="warningValue">--</strong>
+      </article>
+      <article class="card metric">
+        <span>Total Exposure</span>
+        <strong id="exposureValue">--</strong>
+      </article>
+    </section>
+
+    <section class="warning-callout hidden" id="warningCallout"></section>
+
+    <section class="main-grid">
+      <article class="card">
+        <div class="section-title">
+          <h2>Systemic Risk Simulation</h2>
+          <span id="stepCount">No run yet</span>
+        </div>
+        <div class="risk-callout" id="riskCallout">
+          Choose the number of banks and click Run Simulation.
+        </div>
+        <canvas id="riskCanvas" width="760" height="280"></canvas>
+      </article>
+
+      <article class="card">
+        <div class="section-title">
+          <h2>Summary</h2>
+        </div>
+        <div class="summary-list" id="summaryList">
+          <p class="empty">Run a simulation to show details.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <h2>Bank Table</h2>
+        <span id="tableCount">Waiting for results</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Zone</th>
+              <th>Reason</th>
+              <th>Suspend Steps</th>
+              <th>Total Assets</th>
+              <th>Liquid Assets</th>
+              <th>Liabilities</th>
+              <th>LCR</th>
+              <th>CAR</th>
+              <th>IB Assets</th>
+              <th>IB Liabilities</th>
+            </tr>
+          </thead>
+          <tbody id="bankRows">
+            <tr>
+              <td colspan="13" class="empty">Click Run Simulation to load data.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js?v=scenario-front-panel-v18"></script>
+</body>
+</html>

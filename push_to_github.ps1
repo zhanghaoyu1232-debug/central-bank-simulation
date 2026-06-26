@@ -27,16 +27,23 @@ if ($status) {
 
 Write-Host "`n=== Creating/pushing GitHub repo ==="
 $repoName = "central-bank-simulation"
-$remoteUrl = git remote get-url origin 2>$null
-if (-not $remoteUrl) {
+$hasOrigin = @(git remote) -contains "origin"
+
+if (-not $hasOrigin) {
     gh repo create $repoName --public `
         --description "Bank simulation: central policy, decentralized danger zone, interbank rollover" `
         --source=. --remote=origin --push
 } else {
+    $remoteUrl = git remote get-url origin
     Write-Host "Remote already exists: $remoteUrl"
     git push -u origin HEAD
 }
 
 Write-Host "`n=== Done ==="
-git remote get-url origin
-Write-Host "URL: https://github.com/$username/$repoName"
+if (@(git remote) -contains "origin") {
+    git remote get-url origin
+    Write-Host "URL: https://github.com/$username/$repoName"
+} else {
+    Write-Host "Failed to create remote. Run gh repo create manually."
+    exit 1
+}
