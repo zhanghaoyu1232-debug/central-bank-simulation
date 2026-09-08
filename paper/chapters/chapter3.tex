@@ -1,0 +1,648 @@
+\chapter{Model Framework}
+
+\section{Overall Model Framework}
+
+This thesis develops a dynamic interbank network simulation model to
+examine how different loan-matching mechanisms affect the formation of
+interbank exposures and the subsequent evolution of systemic risk.
+Unlike models that impose a fixed network, the proposed framework
+generates creditor--debtor relationships endogenously from banks'
+changing balance-sheet conditions and trading decisions.
+
+The simulated banking system consists of one central bank, 20 commercial
+banks, and nine shadow banks. The central bank provides the policy-rate
+and liquidity environment but does not participate in ordinary interbank
+matching. Commercial banks and shadow banks may become lenders,
+borrowers, or non-participants according to their liquidity positions,
+capital conditions, funding needs, and risk preferences.
+
+Each simulation period represents one business day. The daily process
+proceeds in the following order:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  Liquidity support queued after the preceding day's settlement is
+  disbursed, the policy rule reacts to the preceding systemic-risk value,
+  and matured central-bank support loans are settled.
+\item
+  Payments contractually due under all existing interbank contracts are
+  combined into one gross liability matrix. Eisenberg--Noe clearing then
+  determines actual payments, receipts, and payment shortfalls.
+\item
+  Contract balances are updated. With rollover disabled, an unpaid
+  single-payment balance causes hard default; with rollover enabled,
+  unpaid installments become arrears and do not cause default solely
+  because of a missed payment. Creditor write-offs and negative-equity
+  failures are resolved to a fixed point.
+\item
+  Regulatory positions are refreshed, and any liquidity support implied
+  by the current settlement is queued for the next business day.
+\item
+  Market conditions, deposit flows, common shocks, and bank-specific rates
+  are updated. Active banks are assigned lender, borrower, or
+  non-participant roles.
+\item
+  New interbank loans are formed through either centralized matching or
+  decentralized request-for-quote matching.
+\item
+  Completed trades are registered as dated contracts, funded projects are
+  updated, and project returns, defaults, and losses are realized.
+\item
+  Solvency support is applied when enabled, the post-project
+  negative-equity and creditor-write-off cascade is resolved to a fixed
+  point, and systemic-risk indicators are recorded.
+\end{enumerate}
+
+Newly originated loans do not enter the clearing calculation on the day
+on which they are created because their contractual payment dates lie in
+future periods. They nevertheless affect the end-of-period exposure
+network and the balance-sheet positions carried into the next business
+day.
+
+This sequence links bank conditions, loan formation, contract
+persistence, payment clearing, and risk measurement within a common
+dynamic framework. Matching decisions made in one period create
+obligations that may affect liquidity, capital, and default outcomes in
+later periods. The detailed bank variables and market updates are
+presented in Sections 3.2--3.4, while the two matching procedures are
+specified in Chapter~4 and the clearing mechanism is formalized in
+Chapter~5.
+
+\section{Bank Types and Node State Variables}
+
+The model distinguishes three types of institutions: a central bank,
+commercial banks, and shadow banks. This section defines their functions
+and behavioral characteristics within the model. The numerical
+composition of the simulated banking system and the type-specific
+experimental settings are reported in Section~6.2.
+
+The central bank is treated as a special policy institution. It provides
+the policy-rate environment and the interest-rate corridor but does not
+participate in ordinary centralized or RFQ matching as a commercial
+lender or borrower. It is excluded from the lender--borrower
+role-assignment process and from the calculation of the non-central-bank
+failure rate. Liquidity support is provided only when the corresponding
+policy-support mechanism is enabled.
+
+Commercial banks are the main ordinary participants in the interbank
+market. They may become lenders, borrowers, or non-participants
+according to their current liquidity positions, capital conditions,
+funding needs, investment opportunities, and risk preferences. Their
+market roles are therefore determined dynamically rather than fixed by
+institutional type.
+
+Shadow banks also participate as ordinary market institutions, but their
+funding structure differs from that of commercial banks. They rely more
+heavily on interbank and wholesale funding, which may increase their
+sensitivity to refinancing and market-liquidity conditions. However,
+shadow banks are not assumed to have automatically higher risk appetite
+or predetermined network positions. Their counterparties, exposures, and
+market roles emerge from their current states and the selected matching
+mechanism.
+
+Commercial and shadow banks are subject to the same capital adequacy
+threshold, clearing rules, and failure definition in the baseline model.
+Institutional heterogeneity therefore arises primarily from
+balance-sheet initialization and funding composition rather than from
+different regulatory or failure criteria.
+
+At the node level, each bank is described by a set of balance sheet
+variables, regulatory indicators, and behavioral parameters. These
+variables jointly determine the bank's risk condition, market role,
+lending capacity, borrowing demand, and payment ability during clearing.
+In the code implementation, these variables are organized into
+15-dimensional node features to represent each bank's state in the
+current interbank network. The main node state variables are as follows:
+
+
+\begin{equation}
+\begin{aligned}
+\mathbf x_{i,t}=(&C_{i,t},\mathrm{LA}_{i,t},\mathrm{CL}_{i,t},\mathrm{IBA}_{i,t},\mathrm{IBL}_{i,t},S_{i,t},a_{i,t},\\
+&\mathrm{CAR}_{i,t},\mathrm{LCR}_{i,t},\mathrm{LEV}_{i,t},V_t,r_{i,t}^{L},r_{i,t}^{I},\rho_{i,t},o_{i,t}).
+\end{aligned}
+\label{eq:node-state}
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(C_{i,t}\), \(LA_{i,t}\), \(CL_{i,t}\), \(IBA_{i,t}\), and
+\(IBL_{i,t}\) denote the core capital, liquid assets, current
+liabilities, interbank assets, and interbank liabilities of bank \(i\) in
+period \(t\), respectively. These five variables describe the bank's
+balance-sheet position. A bank with more liquid assets and fewer
+short-term liabilities is generally better able to meet its payment
+obligations, whereas a large interbank liability position creates
+additional repayment pressure.
+
+The variables \(S_{i,t}\) and \(a_{i,t}\) describe solvency and operating
+status. \(S_{i,t}\) denotes the solvency ratio, while
+\(a_{i,t} \in \left\{ 0,1 \right\}\) is the activity indicator. It equals
+one when the bank remains active and zero after the bank has failed. An
+inactive bank no longer participates in ordinary interbank matching.
+Its contracts enter estate resolution; claims against surviving borrowers
+may continue as replacement claims held by the central bank.
+
+Capital and liquidity conditions are represented by \(CAR_{i,t}\),
+\(LCR_{i,t}\), and \(LEV_{i,t}\). \(CAR_{i,t}\) measures the bank's
+capital relative to its risk-weighted assets, and \(LCR_{i,t}\) measures
+the liquid resources available to cover expected short-term funding
+outflows. \(LEV_{i,t}\) represents the degree of capital backing for the
+asset exposure included in its denominator. These indicators influence
+risk assessment, lender--borrower role assignment, and the measurement
+of systemic risk.
+
+Market conditions and bank behavior are captured by \(V_{t}\),
+\(r_{i,t}^{L}\), \(r_{i,t}^{I}\), \(\rho_{i,t}\), and \(o_{i,t}\).
+\(V_{t}\) denotes market volatility in period \(t\). The variables
+\(r_{i,t}^{L}\) and \(r_{i,t}^{I}\) denote the bank's lending-rate
+requirement and project-investment return rate, respectively. Risk
+appetite is represented by \(\rho_{i,t}\), while \(o_{i,t}\) denotes the
+expected funding outflow rate. Together, these variables affect lending
+willingness, borrowing demand, acceptable financing costs, and
+vulnerability to liquidity pressure.
+
+The 15-dimensional feature vector links accounting conditions with
+market behavior. Liquid assets, current liabilities, and funding
+outflows determine the liquidity buffer; capital and leverage measures
+describe financial resilience; and interest rates, volatility, and risk
+appetite affect transaction decisions. The features are recalculated as
+bank conditions change, ensuring that role assignment and risk
+evaluation remain connected to the current balance sheet.
+
+Within each business-day cycle, payments due under existing contracts
+are cleared before new loans are formed. The resulting cash positions,
+together with market conditions, investment returns, funding outflows,
+and outstanding contracts, are used to update the node features. New
+lending changes interbank assets and liabilities, while payment
+shortfalls feed back into liquidity, capital, and activity status. The
+node state is therefore dynamic rather than a fixed initial
+characteristic.
+
+\section{Market Environment and Cycle Update Mechanism}
+
+A business day is the smallest common time unit used in the simulation.
+Policy rates, lending rates, investment returns, contract maturities,
+and balance-sheet growth are therefore expressed at daily frequency.
+This is not meant to reproduce intraday payment systems; it provides a
+consistent order for settlement, matching, and risk measurement and
+prevents an annual rate or maturity assumption from being applied at the
+wrong scale.
+
+The market environment is an important external factor affecting bank
+behavior and systemic risk. In the model, the market environment is
+divided into two states: a bull market and a bear market. A bull market
+represents a stable environment, where banks have stronger capital and
+liquidity conditions, investment returns are more favorable, and market
+volatility is lower. A bear market represents a stressed environment,
+where capital and liquidity buffers decline, liability pressure
+increases, investment returns deteriorate, and market volatility becomes
+higher. Distinguishing between these two market states makes it possible
+to analyze systemic risk dynamics under both normal and stressed
+conditions.
+
+During the initialization stage, the market environment is randomly set
+as either a bull market or a bear market. If the market is in a bull
+state, the base interest rate is set at a lower level. If the market is
+in a bear state, the base interest rate is set at a higher level. The
+long-term interest rate is then determined by adding a
+market-state-specific spread to the base interest rate. In the code
+implementation, bull and bear markets use different base interest rates,
+long-term interest rate spreads, loan rate spreads, and investment
+return ranges. The market state affects not only external return
+conditions, but also interbank borrowing costs and bank investment
+behavior.
+
+The market environment is not fixed throughout the simulation but
+evolves over time. Each market state remains in effect for a specified
+duration. Once that duration has been reached, the next state is
+selected randomly between bull and bear conditions, and the duration
+counter is reset. This mechanism captures changes in market conditions
+across multiple business days without assuming that the financial system
+remains in a single state. Market-state transitions subsequently affect
+interest rates, investment returns, liquid assets, and liability
+pressure.
+
+After payments due under existing contracts have been settled and the
+contract book has been updated, the model revises policy rates and
+market conditions for the current business day. In a bull market, the
+base interest rate fluctuates around a lower level, the long-term
+interest rate is calculated by adding the bull-market spread, market
+volatility remains low, and liquid assets may receive positive market
+adjustments. In a bear market, the base interest rate may move toward a
+higher level, the long-term interest rate is calculated by adding the
+bear-market spread, market volatility is higher, and liquid assets may
+be negatively adjusted. This setting reflects the increase in funding
+costs, decline in asset values, and rise in volatility during stressed
+market conditions.
+
+For each bank, the market environment affects several state variables.
+The market volatility variable is updated according to the current
+market state. The bank's loan interest rate is calculated by adding the
+corresponding market-state loan spread to the base interest rate. In a
+bear market, the loan spread is usually higher, reflecting higher
+funding costs. The bank's investment return rate is determined by adding
+an investment return spread to the long-term interest rate. Finally,
+liquid assets are adjusted according to market conditions, while current
+liabilities grow according to the daily-frequency liability growth rate.
+
+Market conditions also affect banks' funding outflow rates. In a bull
+market, the outflow rate of non-central banks remains in a lower range.
+In a bear market, the outflow rate is set at a higher level. This means
+that banks face greater short-term cash outflow pressure during stressed
+periods. If a bank's liquid assets are insufficient relative to its
+current liabilities and outflow rate, the simulation regards the bank as
+facing short-term liquidity pressure and reduces its risk appetite. The
+decline in risk appetite further affects the bank's investment and
+lending behavior, allowing market stress to feed back into the interbank
+network formation process.
+
+Market-state changes are only one source of variation; the simulation
+also includes a common liquidity-and-credit shock. On each business day,
+the shock occurs with probability 0.035. A shock does not impose an
+unbacked cash-only loss. Instead, it represents an equity-neutral deposit
+run: liquid assets and current liabilities fall by the same withdrawal
+amount. It simultaneously multiplies the same-day funding-outflow rate by
+1.25, subject to heterogeneous bank sensitivity and an upper bound of
+0.95. The project-default-probability multiplier rises to 2.0 and remains
+in force for five business days. This design creates immediate liquidity
+pressure and persistent credit deterioration without mechanically causing
+synchronous insolvency in both matching regimes.
+
+The framework also considers the influence of project investment on bank
+states. Banks may also hold project investment assets while
+participating in the interbank market. Project returns are affected by
+the market environment. In a bull market, investment returns are more
+favorable, while in a bear market, returns are lower and more volatile.
+If a bank has a higher risk appetite and expected project returns exceed
+funding costs, it may generate opportunity-driven borrowing demand.
+Conversely, when market pressure increases or investment returns
+decline, banks' willingness to invest and borrow is reduced. Interbank
+borrowing demand is driven not only by liquidity gaps, but also by
+investment opportunities and market return conditions.
+
+During the periodic update, current liabilities increase according to
+the daily liability growth rate, while liquid assets are adjusted
+according to market conditions. This setting allows bank balance sheets
+to change continuously over time, rather than only when shocks occur. As
+liabilities increase period by period, banks need to maintain higher
+liquidity buffers. As liquid assets fluctuate with market conditions,
+some banks may change from lenders to borrowers. Market environment
+changes affect bank role assignment through balance sheet updates.
+
+The market environment and cycle update mechanism also affect the
+structure of the interbank network. In a bull market, banks generally
+have stronger liquidity positions and higher investment returns, so
+liquidity supply and investment-driven borrowing demand may coexist. In
+a bear market, liquidity pressure increases, available lending supply
+decreases, and borrowing demand is more likely to arise from liquidity
+gaps. In the decentralized RFQ version, borrowing demand is further
+decomposed into gap demand and expansion demand. Gap demand is
+determined by the difference between target liquidity and actual
+liquidity, while expansion demand depends on investment returns, loan
+rates, risk appetite, and the market environment.
+
+The market environment and cycle update mechanism have three main
+functions in this model. They provide dynamic external conditions for
+bank balance sheets and market interest rates, allowing bank states to
+change over time. They affect lending capacity and borrowing demand by
+changing liquid assets, current liabilities, funding outflow rates,
+investment returns, and risk preferences. They influence the dynamic
+evolution of systemic risk by changing the conditions for interbank loan
+formation and clearing payment capacity. The market environment is not
+merely a background setting, but an important driving factor linking
+individual bank states, loan matching mechanisms, and systemic risk
+propagation.
+
+\section{Regulatory and Risk Indicators}
+
+The simulation calculates both bank-level regulatory indicators and
+system-level risk indicators in each simulation period. Bank-level
+indicators describe the capital position, liquidity condition, solvency,
+and activity status of each bank. These indicators also affect role
+assignment and trading behavior in the interbank market. System-level
+risk indicators measure the overall risk level of the banking system and
+serve as the main output variables for the subsequent experimental
+analysis.
+
+\subsection{Capital Adequacy Ratio}
+
+The capital adequacy ratio measures a bank's ability to cover risky
+assets with capital. In this model, the capital adequacy ratio is the
+core indicator used to identify whether a bank is under capital stress.
+Let \(\mathbf{C}_{\mathbf{i},\mathbf{t}}\) denote the core capital of
+bank \(\mathbf{i}\) in period \(\mathbf{t}\), and let
+\(\mathbf{RW}\mathbf{A}_{\mathbf{i},\mathbf{t}}\) denote its
+risk-weighted assets. The capital adequacy ratio is defined as:
+
+
+\begin{equation}
+\mathrm{CAR}_{i,t}=\begin{cases}
+ \min\left\{1.5,\,\dfrac{\max\{0,C_{i,t}\}}{\mathrm{RWA}_{i,t}+\varepsilon}\right\},
+ &\mathrm{RWA}_{i,t}>0,\\[3pt]
+ 0,&\mathrm{RWA}_{i,t}=0.
+ \end{cases}\label{eq:car}
+\end{equation}
+
+
+In this model, risk-weighted assets consist of interbank assets and
+project investment assets, subject to a liability-based numerical floor:
+
+
+\begin{equation}
+\mathrm{RWA}_{i,t}=\max\left\{
+0.5\,\mathrm{IBA}_{i,t}+\mathrm{PA}_{i,t},
+\ 0.08\,\mathrm{TL}_{i,t}
+\right\}\label{eq:rwa}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(\mathbf{IB}\mathbf{A}_{\mathbf{i},\mathbf{t}}\) denotes
+interbank assets and \(\mathbf{P}\mathbf{A}_{\mathbf{i},\mathbf{t}}\)
+denotes project investment assets. Interbank assets are assigned a risk
+weight of 0.5, while project investment assets receive a risk weight of
+1.0. Here \(\mathrm{TL}_{i,t}\) is total accounting liabilities, comprising
+current, interbank, and termed-out liabilities. The liability-based floor
+prevents a bank with a temporarily small measured risky-asset book from
+receiving an unrealistically large CAR. The lower bound \(\varepsilon\) prevents the capital adequacy ratio
+from becoming undefined when measured risk-weighted assets are zero or
+extremely small. In the code implementation, \_safe\_car\_value() also
+limits extreme CAR values to maintain numerical stability.
+
+The model defines the capital adequacy ratio threshold as
+\(\mathbf{\theta}\). A bank is considered to be under capital stress
+when its capital adequacy ratio falls below this threshold:
+
+
+\begin{equation}
+\mathrm{CAR}_{i,t}<\theta.
+\end{equation}
+
+
+In the baseline setting, the threshold is:
+
+
+\begin{equation}
+\theta=0.08.
+\end{equation}
+
+
+This threshold is used not only to identify banks under capital stress,
+but also to calculate the capital-stress share and the capital gap ratio
+in the systemic risk indicators.
+
+\subsection{Liquidity Coverage Ratio}
+
+The liquidity coverage ratio measures the extent to which a bank's
+short-term liquid assets can cover stressed funding outflows. Let
+\(\mathbf{L}\mathbf{A}_{\mathbf{i},\mathbf{t}}\) denote the liquid
+assets of bank \(\mathbf{i}\) in period \(\mathbf{t}\),
+\(\mathbf{C}\mathbf{L}_{\mathbf{i},\mathbf{t}}\) denote current
+liabilities, and \(\mathbf{o}_{\mathbf{i},\mathbf{t}}\) denote the
+funding outflow rate. The stressed outflow is defined as:
+
+
+\begin{equation}
+\mathrm{Outflow}_{i,t}
+ =\bigl(\max\{0,\mathrm{CL}_{i,t}\}+\max\{0,\mathrm{IBL}_{i,t}\}\bigr)
+ \max\{o_{i,t},0.10\}\label{eq:outflow}.
+\end{equation}
+
+
+Here \(\mathrm{IBL}_{i,t}\) denotes outstanding interbank liabilities.
+ The effective outflow rate has a floor of 0.10, and termed-out liabilities
+ are excluded from this short-term liquidity denominator. With
+ \(\varepsilon=10^{-9}\), the liquidity coverage ratio is
+
+
+\begin{equation}
+\mathrm{LCR}_{i,t}=\begin{cases}
+ \min\left\{3,\,\dfrac{\max\{0,\mathrm{LA}_{i,t}\}}{\mathrm{Outflow}_{i,t}}\right\},
+ &\mathrm{Outflow}_{i,t}>\varepsilon,\\[3pt]
+ 3,&\mathrm{Outflow}_{i,t}\leq\varepsilon,\ \mathrm{LA}_{i,t}>\varepsilon,\\
+ 0,&\text{otherwise}.
+ \end{cases}\label{eq:lcr}
+\end{equation}
+
+
+In this model, the liquidity coverage ratio directly affects a bank's
+funding demand and lending capacity. When a bank's liquid assets are
+lower than its target liquidity buffer, it is more likely to become a
+borrower. When a bank's liquid assets exceed the target buffer, the
+excess liquidity can be used as loanable funds. Therefore,
+\(\mathbf{LC}\mathbf{R}_{\mathbf{i},\mathbf{t}}\) is not only a
+descriptive risk indicator, but also an important variable in bank role
+assignment and loan matching.
+
+The function \texttt{\_safe\_lcr\_value()} implements these rules in both
+ mechanisms. The initial exported LCR is evaluated at a construction-time
+ outflow rate of 0.4 for non-central banks and 0.2 for the central bank.
+ Regulatory refreshes, including the refresh before the first EN settlement,
+ then use each bank's current outflow rate. Appendix~\ref{app:initial-bank-data}
+ distinguishes this initial cache from subsequent state-dependent values.
+
+\subsection{Solvency Ratio and Leverage Ratio}
+
+In addition to the capital adequacy ratio and the liquidity coverage
+ratio, the model also uses the solvency ratio and leverage ratio to
+describe bank risk conditions.
+
+The solvency ratio measures accounting equity relative to total
+ liabilities. Let \(E_{i,t}=\mathrm{LA}_{i,t}+\mathrm{IBA}_{i,t}
+ +\mathrm{PA}_{i,t}-\mathrm{TL}_{i,t}\) denote accounting equity before
+ truncation, where total liabilities include current, interbank, and
+ termed-out liabilities. The solvency ratio is
+
+
+\begin{equation}
+S_{i,t}=\frac{E_{i,t}}{\mathrm{TL}_{i,t}+\varepsilon}\label{eq:solvency}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent Regulatory core capital is \(C_{i,t}=\max\{0,E_{i,t}\}\)
+ while a bank remains active. A lower solvency ratio indicates a smaller
+ equity buffer relative to liabilities; a negative value signals negative
+ accounting equity. Liquid assets already enter \(E_{i,t}\) and are not
+ added to equity a second time.
+
+The model-specific leverage measure relates a bank's core capital to the
+liquid and interbank assets included in the denominator. It is defined
+as:
+
+
+\begin{equation}
+\mathrm{LEV}_{i,t}=\frac{C_{i,t}}{\max\left\{\varepsilon,\mathrm{LA}_{i,t}+\mathrm{IBA}_{i,t}\right\}}\label{eq:leverage}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \({LA}_{i,t}\) denotes liquid assets and \({IBA}_{i,t}\) denotes
+interbank assets. Because capital appears in the numerator, a higher
+value indicates stronger capital backing for these asset exposures. This
+measure should not be interpreted as a conventional assets-to-equity
+leverage multiple, for which a higher value would indicate greater
+leverage.
+
+In the simulation, the solvency ratio, capital adequacy ratio, liquidity
+coverage ratio, and leverage ratio are updated in each period and
+written into bank state variables.
+
+\subsection{Bank Failure and Capital Stress}
+
+The simulation distinguishes bank inactivity from capital stress. Bank
+inactivity is represented by \(a_{i,t}\), where \(a_{i,t} = 1\) indicates
+that bank \(i\) remains active in period \(t\), while
+\(a_{i,t} = 0\) indicates that it has met the failure condition specified
+in the daily simulation process. Once a bank becomes inactive, it is
+excluded from subsequent ordinary interbank matching. Default resolution
+distributes recoveries and closes its original contracts. Claims held by
+the failed bank against surviving borrowers are transferred to the central
+bank, retaining the surviving borrowers' repayment obligations.
+
+Capital stress does not necessarily imply immediate failure. An active
+bank is classified as being under capital stress when
+\({CAR}_{i,t} < \theta\). Such a bank may continue participating in the
+interbank market, but its capacity to absorb additional losses is
+limited. This distinction allows the analysis to record both realized
+failures and vulnerabilities that emerge before a bank becomes inactive.
+
+\subsection{Systemic Risk Indicators}
+
+Let \(\mathcal{B}\) denote the set of non-central banks and let
+\(\mathcal{B}_{t}^{active}\) denote the subset that remains active in
+period \(t\). The function \(\mathbf{1}( \cdot )\) is an indicator
+function that equals one when the stated condition is satisfied and zero
+otherwise.
+
+The bank failure rate measures the proportion of non-central banks that
+have become inactive:
+
+
+\begin{equation}
+\mathrm{FR}_t=\frac{1}{\lvert\mathcal B\rvert}\sum_{i\in\mathcal B}\mathbf{1}\left\{a_{i,t}=0\right\}\label{eq:failure-rate}.
+\end{equation}
+
+
+Let \(\mathcal A_t=\{i\in\mathcal B:a_{i,t}=1\}\) be the active
+non-central banks. The capital-breach share is the fraction of active
+banks in the recovery-hysteresis low-CAR state:
+
+
+\begin{equation}
+\mathrm{CBS}_t=
+\frac{\displaystyle\sum_{i\in\mathcal A_t}h_{i,t}(\theta)}
+{\max\left\{1,\lvert\mathcal A_t\rvert\right\}}
+\label{eq:capital-stress-share}.
+\end{equation}
+
+Here \(h_{i,t}(\theta)=1\) when current CAR is below \(\theta\), or when
+the preceding-period CAR was below \(\theta\) and current CAR remains
+below \(\theta+\delta\), with \(\delta=0.0005\). Otherwise it is zero.
+Failed banks are excluded from both numerator and denominator and are
+recorded exclusively by \(\mathrm{FR}_t\). This definition is used by the
+executable scorer, Appendix~A, and all figure labels.
+
+For each non-central bank, the minimum capital requirement is defined
+as:
+
+
+\begin{equation}
+K_{i,t}^{\mathrm{req}}=\begin{cases}
+ \theta\,\mathrm{RWA}_{i,t},&a_{i,t}=1,\\
+ K_i^{\mathrm{fail}},&a_{i,t}=0,
+ \end{cases}\label{eq:required-capital}
+\end{equation}
+
+
+The failure snapshot \(K_i^{\mathrm{fail}}\) is recorded using the
+ policy threshold and regulatory RWA immediately before the default-resolution
+ operation closes the bank's interbank book, and remains fixed thereafter.
+ The available capital used in CGR is
+ \(C_{i,t}^{\mathrm{avail}}=\mathbf{1}\{a_{i,t}=1\}\max\{0,C_{i,t}\}\).
+ The corresponding capital gap is
+
+
+\begin{equation}
+\mathrm{Gap}_{i,t}=\max\left\{0,\,K_{i,t}^{\mathrm{req}}-C_{i,t}^{\mathrm{avail}}\right\}\label{eq:capital-gap}.
+\end{equation}
+
+
+The system-level capital gap ratio is:
+
+
+\begin{equation}
+\mathrm{CGR}_t=\frac{\displaystyle\sum_{i\in\mathcal B}\mathrm{Gap}_{i,t}}{\varepsilon+\displaystyle\sum_{i\in\mathcal B}K_{i,t}^{\mathrm{req}}}\label{eq:capital-gap-ratio}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent Whereas
+\(\mathrm{CBS}_t\) records how widely capital stress is distributed,
+\(\mathrm{CGR}_t\) measures the aggregate severity of the resulting capital
+shortfalls.
+
+The composite systemic risk indicator is defined as:
+
+
+\begin{equation}
+\mathrm{SR}_t=w_1\mathrm{FR}_t+w_2\mathrm{CBS}_t+w_3\mathrm{CGR}_t\label{eq:systemic-risk}.
+\end{equation}
+
+
+The baseline weights are:
+
+
+\begin{equation}
+\left(w_1,w_2,w_3\right)=\left(0.5,0.3,0.2\right).
+\end{equation}
+
+
+
+\begin{equation}
+w_1+w_2+w_3=1.
+\end{equation}
+
+
+The resulting value of \(\mathrm{SR}_t\) is restricted to the interval
+\(\left\lbrack 0,1 \right\rbrack\). The three components are also
+retained separately so that changes in the composite measure can be
+attributed to realized failures, the breadth of capital stress, or the
+severity of capital shortfalls.
+
+\subsection{Role of Indicators in the Simulation}
+
+The regulatory indicators connect bank balance sheets with market
+behavior and systemic risk measurement. At the bank level, \(S_{i,t}\),
+\({CAR}_{i,t}\), \({LCR}_{i,t}\), \({LEV}_{i,t}\), and \(a_{i,t}\) form
+part of the node state used in role assignment and post-clearing
+updates. Liquidity conditions affect borrowing demand and lending
+capacity, while capital and solvency conditions determine how strongly a
+bank can withstand investment losses and payment shortfalls. At the
+system level, \(\mathrm{FR}_t\), \(\mathrm{CBS}_t\), and \(\mathrm{CGR}_t\) distinguish
+realized failure from emerging and accumulated capital pressure. Their
+weighted combination, \(\mathrm{SR}_t\), provides the main measure used to
+compare centralized matching and decentralized RFQ.
+
+\section{Period Definition and Dynamic Process}
+
+Each simulation period represents one business day. Market conditions,
+interest rates, investment returns, balance-sheet variables, contract
+maturities, and systemic-risk indicators are therefore expressed at a
+common daily frequency.
+
+Conceptually, each period connects lagged policy support, settlement of
+inherited obligations, market and shock updates, formation of new
+interbank loans, project outcomes, solvency support, recursive default
+resolution, and risk measurement. The state produced at the end of one
+period becomes the initial state of the next period.
+
+Outstanding contracts connect these stages across time. Payments that
+become due in period \(t\) enter the current clearing process, whereas
+principal and interest scheduled for later periods remain in the
+contract book. New loans formed in period \(t\) enter the end-of-period
+exposure network but do not enter the due-payment liability matrix until
+their scheduled payment dates.
+
+The conceptual transition can therefore be summarized as:
+
+previous-period state \(\rightarrow\) queued support and policy
+\(\rightarrow\) one EN settlement \(\rightarrow\) default fixed point
+\(\rightarrow\) market and shock update \(\rightarrow\) daily matching
+\(\rightarrow\) project outcomes and solvency support \(\rightarrow\)
+post-project default fixed point \(\rightarrow\) risk measurement.
+
+The executable simulation algorithm, including initialization, daily
+iteration, Monte Carlo aggregation, and early stopping, is specified in
+Section~6.4.

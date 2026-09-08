@@ -1,0 +1,39 @@
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{upquote}
+
+\definecolor{codegray}{gray}{0.35}
+\definecolor{codeframe}{gray}{0.75}
+
+\lstdefinestyle{thesispython}{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{codegray},
+  stringstyle=\ttfamily,
+  numbers=left,
+  numberstyle=\tiny\color{codegray},
+  stepnumber=1,
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{codeframe},
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b,
+  xleftmargin=2.2em,
+  framexleftmargin=1.7em,
+  aboveskip=1.0em,
+  belowskip=1.0em
+}
+
+\lstset{style=thesispython}
+
+% Packages used by the policy-event tables in the appendix.
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{pdflscape}
+\usepackage{array}

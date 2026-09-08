@@ -1,0 +1,23 @@
+{
+  "source_fingerprint": "11dda58061ded609",
+  "cascade": {
+    "centralized": {
+      "resolved": [
+        1,
+        2
+      ],
+      "refreshes": 3,
+      "creditor_writeoff": 120.0
+    },
+    "decentralized": {
+      "resolved": [
+        1,
+        2
+      ],
+      "refreshes": 3,
+      "creditor_writeoff": 120.0
+    }
+  },
+  "initial_rows_verified": 30,
+  "raw_artifacts_verified": 14
+}

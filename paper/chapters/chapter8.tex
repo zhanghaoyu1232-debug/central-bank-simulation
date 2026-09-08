@@ -1,0 +1,162 @@
+\chapter{Conclusion}
+
+\section{Main Findings}
+
+The results are interpreted as paired comparisons over the same elapsed
+time rather than as rankings based on unmatched terminal values. Formal
+simulations use a pre-specified 1000-business-day horizon and stop early
+only when one or fewer non-central banks remain active. Runs that reach
+day 1000 without collapse are right-censored for collapse-time analysis.
+
+Under the baseline configuration, in which rollover and policy support
+are both enabled, average systemic risk remains low under both matching
+mechanisms through day 1000. The paired full-horizon mean is 0.0396 for
+decentralized RFQ and 0.0447 for centralized matching. The mean paired
+RFQ-minus-Centralized difference is \(-0.00513\), with a 95\% interval
+of \([-0.01276,0.00249]\). The point estimate therefore favors RFQ, but
+the interval narrowly includes zero and does not establish separation at
+the conventional 5\% level.
+
+The endpoint comparison points in the same direction: the paired
+day-1000 difference is \(-0.01727\), with interval
+\([-0.03233,-0.00222]\). The day-1000 CGR difference is
+\(-0.07555\), whose interval \([-0.12626,-0.02484]\) excludes zero.
+Thus the strongest baseline evidence concerns lower accumulated capital
+shortfall under RFQ, while the composite-risk result is directionally
+favorable but statistically less decisive.
+
+Policy conclusions are based on risk paths and bank-days rather than
+collapse dates alone because the baseline ON/ON sample is fully
+right-censored at day 1000. Relative to OFF/OFF, ON/ON increases average
+non-central-bank days alive by 13,353.9 in RFQ and 16,004.1 in centralized
+matching on a fixed 1000-day horizon; both paired intervals are positive. This supports a
+stabilizing interpretation of the combined intervention, while the
+complete censoring of collapse time prevents claims about mean time to
+systemic collapse beyond the observed horizon.
+
+Rollover should be interpreted as a contractual maturity treatment. With
+rollover ON, new loans are originated as 5--20-period installment
+contracts and unpaid installments become arrears; with rollover OFF, new
+loans mature as next-day single payments and any residual after clearing
+causes hard default. The four-scenario comparison therefore identifies
+the interaction between maturity design and policy support, not a
+mechanical ex-post extension of the same bullet contract.
+
+The matching rule has a stronger and more precisely estimated effect on
+network structure than on the composite-risk level. RFQ creates more
+active links (58.95 versus 37.77) and a larger connected component (24.03
+versus 17.08), but lower exposure HHI (0.050 versus 0.094) and a much
+smaller largest bilateral exposure (116 versus 1,119). RFQ also has lower
+funding satisfaction (0.530 versus 0.597), while cumulative volume is not
+statistically separated. The economic interpretation is therefore not
+that RFQ supplies more funds; it distributes activity across a broader
+and less concentrated set of bilateral claims.
+
+Both matching mechanisms operate every business day. Centralized
+matching observes the full eligible market and commits allocations only
+when a borrower's complete demand can be covered. RFQ searches a bounded
+local information pool, applies GNN-assisted screening, and retains
+acceptable partial funding. The estimated difference therefore reflects
+information scope, screening, allocation, pricing, and partial-funding
+rules, but is not driven by unequal trading frequency.
+
+The weight sweep preserves the direction of the average RFQ advantage
+over the tested \(w_1\) grid, but the CAR-threshold sweep is not uniformly
+one-sided. RFQ has lower measured SR at the baseline threshold 0.08 and
+at 0.09, while the ranking reverses from 0.10 onward in
+the current sample. This is evidence that the substantive conclusion is
+sensitive to how broadly capital stress is classified and reinforces the
+need to report \(\mathrm{FR}_t\), \(\mathrm{CBS}_t\), and
+\(\mathrm{CGR}_t\) separately from the composite measure.
+
+\section{Contributions}
+
+This thesis makes four main contributions.
+
+First, it develops a dynamic interbank network framework in which
+bilateral lending relationships are generated endogenously from changing
+bank states and trading decisions rather than imposed as a fixed network
+before contagion is evaluated.
+
+Second, it implements and compares two daily transaction designs within
+the same balance-sheet, regulatory, contract-accounting, and clearing
+framework: a market-wide centralized mechanism with an all-or-nothing
+borrower rule and a decentralized RFQ mechanism with bounded local lender
+discovery, bilateral quotation, GNN-assisted screening, and retained
+partial funding. This makes market design itself part of the endogenous
+network-formation process.
+
+Third, it introduces a dated contract-book structure that separates the
+stock of outstanding exposure from cash flows currently due. The
+rollover switch selects either a 5--20-period amortizing contract or a
+next-day single-payment contract at origination. Only scheduled cash flows enter the gross Eisenberg--Noe
+liability matrix, allowing repayment timing and creditor losses to feed
+back into later bank states without prematurely clearing future
+obligations.
+
+Fourth, it combines multidimensional risk measurement with a
+right-censoring-aware comparison over a pre-specified horizon. The
+framework records failures, capital stress, capital gaps, network
+structure, funding outcomes, project losses, and policy intervention.
+Paired state paths, bank-days, and collapse indicators are kept distinct,
+which is important when an intervention reduces vulnerability without
+producing an observed systemic collapse within the study horizon.
+
+Overall, the contribution of the thesis lies in connecting the trading
+process that creates interbank exposures with the contractual timing and
+clearing process through which those exposures later generate funding
+pressure and systemic loss.
+
+\section{Limitations and Future Research}
+
+The numerical results should be interpreted within the scope of the
+stylized simulation specified in Chapter~6. The system contains 30 institutions whose balance
+sheets, funding structures, behavioral parameters, and market conditions
+are generated from model-based rules rather than calibrated to
+institution-level empirical data. Monetary values are simulation units,
+and the reported systemic-risk levels are comparative model outcomes
+rather than forecasts for a particular banking system.
+
+The matching mechanisms simplify actual interbank trading. Both operate
+daily, but the centralized benchmark combines market-wide information
+with an all-or-nothing funding rule, while RFQ combines local discovery,
+learned screening, and partial execution. The experiment therefore
+identifies the difference between these complete transaction designs,
+not the isolated causal effect of any single component. Future work
+could separately randomize information scope, screening, pricing, and
+partial-funding permission.
+
+The rollover mechanism is also stylized. It assigns an amortizing
+5--20-period schedule at origination without modeling a full refinancing
+market, collateral negotiation, endogenous lender consent, or market
+pricing of maturity extension. Policy support uses
+rule-based liquidity and solvency/capital facilities with finite budgets
+rather than a complete institutional representation of central-bank
+operations.
+
+The 1000-day horizon is long relative to the daily contract cycle. The
+baseline ON/ON sample is fully right-censored at that horizon, so
+collapse time cannot rank mechanisms there. Intermediate first-passage
+thresholds for \(\mathrm{SR}_t\) are reported in Chapter~7; high
+failure-rate thresholds are not reached in ON/ON. OFF/OFF centralized
+matching does record early stops, which shows that collapse is identified
+only in some contractual environments. Longer simulations, larger Monte
+Carlo samples, and event-history methods for additional intermediate
+thresholds would provide more information about tail stability.
+
+The contagion analysis focuses on contractual interbank payments and
+balance-sheet feedback. Other channels, including common asset holdings,
+fire-sale price effects, deposit runs, margin calls, collateral spirals,
+and interactions with non-bank sectors, remain outside the current
+framework. The capital and liquidity indicators are model-based proxies
+and do not constitute a complete implementation of all Basel III
+regulatory calculations.
+
+Future research can calibrate balance sheets, maturities, bilateral
+limits, quotation behavior, policy parameters, and shock processes with
+empirical data. A larger banking population and richer network structure
+would permit stronger tests of heterogeneity. Structural robustness
+could also be expanded beyond the bilateral loan cap to include network
+size, bank-type composition, RFQ search depth, maximum RFQ rounds,
+minimum trade size, centralized auction frequency, maturity structure,
+liquidity buffers, policy budgets, and shock intensity.

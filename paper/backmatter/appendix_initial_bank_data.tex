@@ -1,0 +1,443 @@
+\chapter{Initial Bank Data for Representative Runs}
+\label{app:initial-bank-data}
+% Legacy label retained so older cross-references do not break.
+\label{app:policy-event-logs}
+
+This appendix reports the shared initial-state export accompanying the
+paired experiments in Chapters~6 and~7. The centralized and decentralized
+CSV snapshots agree across all 30 banks and all 22 fields and are printed
+once. They illustrate the initialization; individual Monte Carlo states
+are regenerated from the realized replication seeds, rather than loading
+this same CSV as a fixed input to every replication. The tables contain
+two balance-sheet groups and two regulatory/risk groups.
+
+The exported solvency ratio is accounting equity divided by total
+liabilities, as in Equation~\eqref{eq:solvency}. The initial LCR field is
+a construction-time cache calculated with outflow 0.4 for non-central
+banks and 0.2 for the central bank; the separately exported outflow field
+is the bank's randomized initial rate. At regulatory refresh, LCR is
+recomputed using the current rate and Equation~\eqref{eq:lcr}. Thus, for
+Bank1, the initial solvency ratio is 0.5113 and the cached LCR is 1.2623.
+These values retain the recorded initialization rather than imposing a
+later-period recomputation on the exported snapshot.
+
+\begin{table}[htbp]
+\centering
+\caption{Overview of the shared initial-state export}
+\label{tab:initial-bank-data-overview}
+\small
+\begin{tabular}{lrrrrl}
+\toprule
+Dataset & Banks & Central & Commercial & Shadow & Role in the thesis \\
+\midrule
+Shared initial export & 30 & 1 & 20 & 9 & Representative snapshot \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All monetary values are shown in simulation units and rounded to two
+decimal places. Solvency, capital, liquidity, leverage, risk-appetite,
+volatility, and outflow variables are shown to four decimal places; loan
+and investment rates are shown to six decimal places. ``IB'' denotes
+interbank.
+
+\begingroup
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.12}
+
+\section{Shared Initial Snapshot for Centralized Matching and Decentralized RFQ}
+
+\begin{longtable}{@{}llrrrr@{}}
+\caption{Shared initial data: core capital, liquid assets, current liabilities, and deposits}\label{tab:paired-current-initial-balance-sheet}\\
+\toprule
+Bank & Type & Core capital & Liquid assets & Current liab. & Deposits \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Type & Core capital & Liquid assets & Current liab. & Deposits \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & Central & 5445.20 & 5388.65 & 3886.54 & 3095.81 \\
+Bank1 & Commercial & 1640.55 & 1620.20 & 3208.84 & 2454.11 \\
+Bank2 & Commercial & 608.48 & 1028.73 & 4202.48 & 3084.42 \\
+Bank3 & Commercial & 2850.49 & 2649.87 & 4342.39 & 3037.61 \\
+Bank4 & Commercial & 755.66 & 878.97 & 1233.04 & 853.94 \\
+Bank5 & Commercial & 1787.89 & 2052.02 & 2641.36 & 1883.37 \\
+Bank6 & Commercial & 1744.95 & 2072.82 & 3278.73 & 2337.29 \\
+Bank7 & Commercial & 1851.98 & 2181.60 & 3296.21 & 2435.22 \\
+Bank8 & Commercial & 720.78 & 1119.80 & 3990.22 & 2932.71 \\
+Bank9 & Commercial & 2420.66 & 2358.71 & 3981.77 & 2839.30 \\
+Bank10 & Commercial & 1998.03 & 2241.06 & 2430.33 & 1762.10 \\
+Bank11 & Commercial & 1906.01 & 2117.04 & 2110.30 & 1575.95 \\
+Bank12 & Commercial & 2064.19 & 2471.26 & 4070.66 & 2857.75 \\
+Bank13 & Commercial & 929.86 & 1243.04 & 3131.73 & 2227.72 \\
+Bank14 & Commercial & 1491.41 & 1911.18 & 4197.68 & 3082.29 \\
+Bank15 & Commercial & 1057.50 & 1194.59 & 3404.16 & 2240.01 \\
+Bank16 & Commercial & 1035.67 & 1397.32 & 3616.51 & 2856.07 \\
+Bank17 & Commercial & 1511.69 & 1740.81 & 2291.17 & 1731.08 \\
+Bank18 & Commercial & 602.45 & 730.28 & 1278.27 & 952.91 \\
+Bank19 & Commercial & 920.91 & 1133.85 & 2129.48 & 1456.06 \\
+Bank20 & Commercial & 666.80 & 881.95 & 2151.53 & 1508.90 \\
+Bank21 & Shadow & 1710.74 & 2015.27 & 3045.25 & 469.87 \\
+Bank22 & Shadow & 1116.76 & 836.31 & 2030.12 & 321.77 \\
+Bank23 & Shadow & 682.44 & 825.58 & 1431.33 & 219.40 \\
+Bank24 & Shadow & 746.91 & 982.87 & 2359.66 & 363.49 \\
+Bank25 & Shadow & 1946.41 & 2036.40 & 899.89 & 128.57 \\
+Bank26 & Shadow & 1080.97 & 1395.42 & 3144.42 & 477.40 \\
+Bank27 & Shadow & 1044.17 & 1272.27 & 2281.08 & 367.79 \\
+Bank28 & Shadow & 3402.82 & 2351.80 & 3232.02 & 447.19 \\
+Bank29 & Shadow & 1132.35 & 862.18 & 2359.27 & 338.12 \\
+\end{longtable}
+
+\begin{longtable}{@{}lrrrrr@{}}
+\caption{Shared initial data: interbank borrowing, wholesale funding, interbank assets, interbank liabilities, and project amount}\label{tab:paired-current-initial-balance-sheet-b}\\
+\toprule
+Bank & IB borrow. & Wholesale funding & IB assets & IB liab. & Project amount \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & IB borrow. & Wholesale funding & IB assets & IB liab. & Project amount \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & 0.00 & 790.72 & 0.00 & 0.00 & 3943.08 \\
+Bank1 & 0.00 & 754.74 & 0.00 & 0.00 & 3229.19 \\
+Bank2 & 0.00 & 1118.05 & 0.00 & 0.00 & 3782.23 \\
+Bank3 & 0.00 & 1304.78 & 0.00 & 0.00 & 4543.01 \\
+Bank4 & 0.00 & 379.10 & 0.00 & 0.00 & 1109.74 \\
+Bank5 & 0.00 & 757.99 & 0.00 & 0.00 & 2377.22 \\
+Bank6 & 0.00 & 941.44 & 0.00 & 0.00 & 2950.86 \\
+Bank7 & 0.00 & 860.99 & 0.00 & 0.00 & 2966.58 \\
+Bank8 & 0.00 & 1057.51 & 0.00 & 0.00 & 3591.19 \\
+Bank9 & 0.00 & 1142.47 & 0.00 & 0.00 & 4043.71 \\
+Bank10 & 0.00 & 668.22 & 0.00 & 0.00 & 2187.29 \\
+Bank11 & 0.00 & 534.35 & 0.00 & 0.00 & 1899.27 \\
+Bank12 & 0.00 & 1212.90 & 0.00 & 0.00 & 3663.59 \\
+Bank13 & 0.00 & 904.02 & 0.00 & 0.00 & 2818.56 \\
+Bank14 & 0.00 & 1115.39 & 0.00 & 0.00 & 3777.91 \\
+Bank15 & 0.00 & 1164.15 & 0.00 & 0.00 & 3267.06 \\
+Bank16 & 0.00 & 760.44 & 0.00 & 0.00 & 3254.86 \\
+Bank17 & 0.00 & 560.09 & 0.00 & 0.00 & 2062.06 \\
+Bank18 & 0.00 & 325.36 & 0.00 & 0.00 & 1150.44 \\
+Bank19 & 0.00 & 673.43 & 0.00 & 0.00 & 1916.53 \\
+Bank20 & 0.00 & 642.63 & 0.00 & 0.00 & 1936.38 \\
+Bank21 & 0.00 & 2575.39 & 0.00 & 0.00 & 2740.73 \\
+Bank22 & 0.00 & 1708.35 & 0.00 & 0.00 & 2310.57 \\
+Bank23 & 0.00 & 1211.93 & 0.00 & 0.00 & 1288.20 \\
+Bank24 & 0.00 & 1996.17 & 0.00 & 0.00 & 2123.69 \\
+Bank25 & 0.00 & 771.32 & 0.00 & 0.00 & 809.90 \\
+Bank26 & 0.00 & 2667.03 & 0.00 & 0.00 & 2829.98 \\
+Bank27 & 0.00 & 1913.29 & 0.00 & 0.00 & 2052.97 \\
+Bank28 & 0.00 & 2784.83 & 0.00 & 0.00 & 4283.04 \\
+Bank29 & 0.00 & 2021.15 & 0.00 & 0.00 & 2629.44 \\
+\end{longtable}
+
+\begin{longtable}{@{}lcrrrr@{}}
+\caption{Shared initial data: activity, solvency, CAR, LCR, and leverage}\label{tab:paired-current-initial-state}\\
+\toprule
+Bank & Active & Solvency & CAR & LCR & Leverage \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Active & Solvency & CAR & LCR & Leverage \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & Yes & 1.4010 & 1.3810 & 3.0000 & 1.0105 \\
+Bank1 & Yes & 0.5113 & 0.5080 & 1.2623 & 1.0126 \\
+Bank2 & Yes & 0.1448 & 0.1609 & 0.6120 & 0.5915 \\
+Bank3 & Yes & 0.6564 & 0.6274 & 1.5256 & 1.0757 \\
+Bank4 & Yes & 0.6128 & 0.6809 & 1.7821 & 0.8597 \\
+Bank5 & Yes & 0.6769 & 0.7521 & 1.9422 & 0.8713 \\
+Bank6 & Yes & 0.5322 & 0.5913 & 1.5805 & 0.8418 \\
+Bank7 & Yes & 0.5619 & 0.6243 & 1.6546 & 0.8489 \\
+Bank8 & Yes & 0.1806 & 0.2007 & 0.7016 & 0.6437 \\
+Bank9 & Yes & 0.6079 & 0.5986 & 1.4809 & 1.0263 \\
+Bank10 & Yes & 0.8221 & 0.9135 & 2.3053 & 0.8916 \\
+Bank11 & Yes & 0.9032 & 1.0035 & 2.5080 & 0.9003 \\
+Bank12 & Yes & 0.5071 & 0.5634 & 1.5177 & 0.8353 \\
+Bank13 & Yes & 0.2969 & 0.3299 & 0.9923 & 0.7481 \\
+Bank14 & Yes & 0.3553 & 0.3948 & 1.1382 & 0.7804 \\
+Bank15 & Yes & 0.3106 & 0.3237 & 0.8773 & 0.8852 \\
+Bank16 & Yes & 0.2864 & 0.3182 & 0.9659 & 0.7412 \\
+Bank17 & Yes & 0.6598 & 0.7331 & 1.8995 & 0.8684 \\
+Bank18 & Yes & 0.4713 & 0.5237 & 1.4283 & 0.8250 \\
+Bank19 & Yes & 0.4325 & 0.4805 & 1.3311 & 0.8122 \\
+Bank20 & Yes & 0.3099 & 0.3444 & 1.0248 & 0.7561 \\
+Bank21 & Yes & 0.5618 & 0.6242 & 1.6544 & 0.8489 \\
+Bank22 & Yes & 0.5501 & 0.4833 & 1.0299 & 1.3353 \\
+Bank23 & Yes & 0.4768 & 0.5298 & 1.4420 & 0.8266 \\
+Bank24 & Yes & 0.3165 & 0.3517 & 1.0413 & 0.7599 \\
+Bank25 & Yes & 2.1629 & 1.5000 & 3.0000 & 0.9558 \\
+Bank26 & Yes & 0.3438 & 0.3820 & 1.1094 & 0.7747 \\
+Bank27 & Yes & 0.4578 & 0.5086 & 1.3944 & 0.8207 \\
+Bank28 & Yes & 1.0528 & 0.7945 & 1.8191 & 1.4469 \\
+Bank29 & Yes & 0.4800 & 0.4306 & 0.9136 & 1.3134 \\
+\end{longtable}
+
+\begin{longtable}{@{}lrrrrr@{}}
+\caption{Shared initial data: risk appetite, volatility, loan rate, investment rate, and outflow}\label{tab:paired-current-initial-state-b}\\
+\toprule
+Bank & Risk appetite & Volatility & Loan rate & Invest.\ rate & Outflow \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Risk appetite & Volatility & Loan rate & Invest.\ rate & Outflow \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & 0.3000 & 0.2391 & 0.000154 & 0.000216 & 0.2000 \\
+Bank1 & 0.9825 & 0.3968 & 0.000153 & 0.000212 & 0.3542 \\
+Bank2 & 0.9503 & 0.2153 & 0.000174 & 0.000214 & 0.3917 \\
+Bank3 & 0.7598 & 0.3563 & 0.000175 & 0.000237 & 0.3763 \\
+Bank4 & 0.9142 & 0.2115 & 0.000146 & 0.000207 & 0.4884 \\
+Bank5 & 0.7265 & 0.3691 & 0.000152 & 0.000202 & 0.3107 \\
+Bank6 & 0.7484 & 0.3102 & 0.000155 & 0.000227 & 0.3832 \\
+Bank7 & 0.7738 & 0.3143 & 0.000178 & 0.000208 & 0.4677 \\
+Bank8 & 0.8886 & 0.2965 & 0.000130 & 0.000220 & 0.4965 \\
+Bank9 & 0.9556 & 0.3859 & 0.000165 & 0.000194 & 0.4617 \\
+Bank10 & 0.8910 & 0.3698 & 0.000171 & 0.000230 & 0.4245 \\
+Bank11 & 0.7375 & 0.3012 & 0.000131 & 0.000195 & 0.4838 \\
+Bank12 & 0.8397 & 0.2365 & 0.000132 & 0.000221 & 0.4877 \\
+Bank13 & 0.8399 & 0.2471 & 0.000172 & 0.000222 & 0.3134 \\
+Bank14 & 0.7036 & 0.3090 & 0.000149 & 0.000216 & 0.4465 \\
+Bank15 & 0.7404 & 0.3485 & 0.000154 & 0.000236 & 0.4459 \\
+Bank16 & 0.7333 & 0.3820 & 0.000159 & 0.000223 & 0.3632 \\
+Bank17 & 0.8151 & 0.3479 & 0.000179 & 0.000222 & 0.4992 \\
+Bank18 & 0.9725 & 0.2305 & 0.000169 & 0.000206 & 0.3614 \\
+Bank19 & 0.8984 & 0.2003 & 0.000168 & 0.000211 & 0.3552 \\
+Bank20 & 0.8237 & 0.2880 & 0.000176 & 0.000231 & 0.3620 \\
+Bank21 & 0.9566 & 0.3280 & 0.000178 & 0.000195 & 0.3423 \\
+Bank22 & 0.9336 & 0.2572 & 0.000155 & 0.000234 & 0.4783 \\
+Bank23 & 0.9884 & 0.3181 & 0.000153 & 0.000214 & 0.3859 \\
+Bank24 & 0.9194 & 0.3761 & 0.000179 & 0.000220 & 0.4323 \\
+Bank25 & 0.8190 & 0.3279 & 0.000143 & 0.000214 & 0.3942 \\
+Bank26 & 0.9711 & 0.2327 & 0.000146 & 0.000233 & 0.4300 \\
+Bank27 & 0.9540 & 0.2420 & 0.000148 & 0.000230 & 0.4759 \\
+Bank28 & 0.8514 & 0.3591 & 0.000149 & 0.000210 & 0.3751 \\
+Bank29 & 0.9661 & 0.3580 & 0.000141 & 0.000235 & 0.4312 \\
+\end{longtable}
+
+\endgroup
+\endinput
+
+\section{Archived GitHub Central-Policy File (Not Used in the Formal Sample)}
+
+The following tables reproduce a separately supplied GitHub
+central-policy initialization. The values differ from the shared current
+file and were not used to generate the Chapter~7 results. They are
+retained only for completeness of the data archive.
+
+\begin{longtable}{@{}llrrrr@{}}
+\caption{Archived GitHub file: core capital, liquid assets, current liabilities, and deposits}\label{tab:github-policy-initial-balance-sheet}\\
+\toprule
+Bank & Type & Core capital & Liquid assets & Current liab. & Deposits \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Type & Core capital & Liquid assets & Current liab. & Deposits \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & Central & 10000.00 & 5355.62 & 3556.24 & 1793.24 \\
+Bank1 & Commercial & 4289.97 & 1367.79 & 3308.03 & 1899.83 \\
+Bank2 & Commercial & 2095.70 & 1001.65 & 1583.03 & 863.87 \\
+Bank3 & Commercial & 1968.23 & 1651.17 & 1378.33 & 875.07 \\
+Bank4 & Commercial & 2304.89 & 1611.19 & 1882.25 & 1105.66 \\
+Bank5 & Commercial & 2399.37 & 952.63 & 1944.78 & 1057.65 \\
+Bank6 & Commercial & 1782.55 & 1433.28 & 1406.80 & 905.24 \\
+Bank7 & Commercial & 4205.40 & 1542.07 & 3280.67 & 1952.65 \\
+Bank8 & Commercial & 3773.50 & 1829.05 & 3372.01 & 2135.63 \\
+Bank9 & Commercial & 1061.25 & 1256.85 & 758.17 & 443.58 \\
+Bank10 & Commercial & 2929.86 & 1554.94 & 1889.89 & 1152.48 \\
+Bank11 & Commercial & 2298.24 & 935.59 & 1867.02 & 1022.39 \\
+Bank12 & Commercial & 2925.16 & 1392.40 & 2485.75 & 1618.73 \\
+Bank13 & Commercial & 2064.39 & 1805.49 & 1725.42 & 1130.30 \\
+Bank14 & Commercial & 3222.21 & 1717.33 & 2151.25 & 1396.70 \\
+Bank15 & Commercial & 2065.61 & 1678.59 & 1536.21 & 846.45 \\
+Bank16 & Commercial & 3105.53 & 1111.79 & 2245.30 & 1546.95 \\
+Bank17 & Commercial & 2876.35 & 1172.35 & 2140.08 & 1177.52 \\
+Bank18 & Commercial & 2228.04 & 708.43 & 1741.76 & 1090.79 \\
+Bank19 & Commercial & 1692.92 & 1580.55 & 1331.99 & 751.99 \\
+Bank20 & Commercial & 4030.56 & 1896.69 & 2921.97 & 1691.01 \\
+Bank21 & Shadow & 988.26 & 1098.17 & 763.94 & 14.33 \\
+Bank22 & Shadow & 4206.11 & 1437.06 & 2824.03 & 20.93 \\
+Bank23 & Shadow & 2546.22 & 1720.64 & 1901.54 & 50.82 \\
+Bank24 & Shadow & 4209.17 & 1097.50 & 2627.47 & 48.11 \\
+Bank25 & Shadow & 2001.28 & 1802.95 & 1447.84 & 24.59 \\
+Bank26 & Shadow & 3473.29 & 1333.14 & 2400.64 & 48.81 \\
+Bank27 & Shadow & 3681.06 & 1750.88 & 2372.55 & 42.16 \\
+Bank28 & Shadow & 1561.76 & 1736.00 & 1109.03 & 30.23 \\
+Bank29 & Shadow & 1141.56 & 612.80 & 674.77 & 0.11 \\
+\end{longtable}
+
+\begin{longtable}{@{}lrrrrr@{}}
+\caption{Archived GitHub file: interbank borrowing, wholesale funding, interbank assets, interbank liabilities, and project amount}\label{tab:github-policy-initial-balance-sheet-b}\\
+\toprule
+Bank & IB borrow. & Wholesale funding & IB assets & IB liab. & Project amount \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & IB borrow. & Wholesale funding & IB assets & IB liab. & Project amount \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & 1126.34 & 636.66 & 0.00 & 0.00 & 3200.62 \\
+Bank1 & 838.88 & 569.33 & 0.00 & 455.26 & 2977.23 \\
+Bank2 & 326.45 & 392.70 & 0.00 & 0.00 & 1424.72 \\
+Bank3 & 300.81 & 202.45 & 0.00 & 0.00 & 1240.50 \\
+Bank4 & 383.95 & 392.65 & 0.00 & 0.00 & 1694.03 \\
+Bank5 & 481.46 & 405.67 & 0.00 & 0.00 & 1750.30 \\
+Bank6 & 222.75 & 278.82 & 0.00 & 0.00 & 1266.12 \\
+Bank7 & 587.48 & 740.54 & 0.00 & 0.00 & 2952.60 \\
+Bank8 & 792.74 & 443.64 & 0.00 & 0.00 & 3034.81 \\
+Bank9 & 131.00 & 183.58 & 0.00 & 0.00 & 682.35 \\
+Bank10 & 363.97 & 373.43 & 0.00 & 0.00 & 1700.90 \\
+Bank11 & 467.92 & 376.71 & 190.41 & 0.00 & 1680.32 \\
+Bank12 & 417.42 & 449.60 & 0.00 & 0.00 & 2237.17 \\
+Bank13 & 224.58 & 370.53 & 0.00 & 0.00 & 1552.88 \\
+Bank14 & 352.50 & 402.04 & 0.00 & 0.00 & 1936.12 \\
+Bank15 & 385.80 & 303.96 & 0.00 & 0.00 & 1382.59 \\
+Bank16 & 299.02 & 399.34 & 444.27 & 0.00 & 2020.77 \\
+Bank17 & 556.58 & 405.99 & 0.00 & 0.00 & 1926.08 \\
+Bank18 & 363.29 & 287.68 & 0.00 & 52.18 & 1567.59 \\
+Bank19 & 336.73 & 243.27 & 0.00 & 0.00 & 1198.79 \\
+Bank20 & 670.10 & 560.86 & 0.00 & 0.00 & 2629.77 \\
+Bank21 & 284.92 & 464.69 & 0.00 & 0.00 & 687.55 \\
+Bank22 & 1035.47 & 1767.62 & 0.00 & 0.00 & 2541.63 \\
+Bank23 & 650.38 & 1200.34 & 0.00 & 0.00 & 1711.39 \\
+Bank24 & 886.34 & 1693.02 & 0.00 & 317.19 & 2364.73 \\
+Bank25 & 527.95 & 895.30 & 0.00 & 0.00 & 1303.06 \\
+Bank26 & 805.68 & 1546.15 & 189.95 & 0.00 & 2160.58 \\
+Bank27 & 821.96 & 1508.43 & 0.00 & 0.00 & 2135.30 \\
+Bank28 & 365.75 & 713.05 & 0.00 & 0.00 & 998.13 \\
+Bank29 & 217.74 & 456.92 & 0.00 & 0.00 & 607.29 \\
+\end{longtable}
+
+\begin{longtable}{@{}lcrrrr@{}}
+\caption{Archived GitHub file: activity, solvency, CAR, LCR, and leverage}\label{tab:github-policy-initial-state}\\
+\toprule
+Bank & Active & Solvency & CAR & LCR & Leverage \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Active & Solvency & CAR & LCR & Leverage \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & Yes & 4.3179 & 3.1244 & 7.5299 & 1.8672 \\
+Bank1 & Yes & 1.5727 & 1.4409 & 0.6896 & 3.1364 \\
+Bank2 & Yes & 1.9566 & 1.4709 & 1.5819 & 2.0923 \\
+Bank3 & Yes & 2.6259 & 1.5866 & 2.9949 & 1.1920 \\
+Bank4 & Yes & 2.0805 & 1.3606 & 2.1400 & 1.4306 \\
+Bank5 & Yes & 1.7236 & 1.3708 & 1.2246 & 2.5187 \\
+Bank6 & Yes & 2.2859 & 1.4079 & 2.5471 & 1.2437 \\
+Bank7 & Yes & 1.7519 & 1.4243 & 1.1751 & 2.7271 \\
+Bank8 & Yes & 1.6615 & 1.2434 & 1.3561 & 2.0631 \\
+Bank9 & Yes & 3.0575 & 1.5553 & 4.1444 & 0.8444 \\
+Bank10 & Yes & 2.3731 & 1.7225 & 2.0569 & 1.8842 \\
+Bank11 & Yes & 1.8341 & 1.2944 & 1.5077 & 2.0411 \\
+Bank12 & Yes & 1.7369 & 1.3075 & 1.4004 & 2.1008 \\
+Bank13 & Yes & 2.2429 & 1.3294 & 2.6160 & 1.1434 \\
+Bank14 & Yes & 2.2961 & 1.6643 & 1.9957 & 1.8763 \\
+Bank15 & Yes & 2.4373 & 1.4940 & 2.7317 & 1.2306 \\
+Bank16 & Yes & 2.0762 & 1.3846 & 1.7326 & 1.9958 \\
+Bank17 & Yes & 1.8918 & 1.4934 & 1.3695 & 2.4535 \\
+Bank18 & Yes & 1.6560 & 1.4213 & 0.9419 & 3.1450 \\
+Bank19 & Yes & 2.4576 & 1.4122 & 2.9665 & 1.0711 \\
+Bank20 & Yes & 2.0285 & 1.5327 & 1.6228 & 2.1251 \\
+Bank21 & Yes & 2.7311 & 1.4374 & 3.5938 & 0.8999 \\
+Bank22 & Yes & 1.9983 & 1.6549 & 1.2722 & 2.9269 \\
+Bank23 & Yes & 2.2439 & 1.4878 & 2.2622 & 1.4798 \\
+Bank24 & Yes & 1.8990 & 1.7800 & 0.7425 & 3.8352 \\
+Bank25 & Yes & 2.6275 & 1.5358 & 3.1132 & 1.1100 \\
+Bank26 & Yes & 2.0813 & 1.5399 & 1.5861 & 2.2804 \\
+Bank27 & Yes & 2.2895 & 1.7239 & 1.8449 & 2.1024 \\
+Bank28 & Yes & 2.9736 & 1.5647 & 3.9133 & 0.8996 \\
+Bank29 & Yes & 2.6000 & 1.8798 & 2.2704 & 1.8629 \\
+\end{longtable}
+
+\begin{longtable}{@{}lrrrrr@{}}
+\caption{Archived GitHub file: risk appetite, volatility, loan rate, investment rate, and outflow}\label{tab:github-policy-initial-state-b}\\
+\toprule
+Bank & Risk appetite & Volatility & Loan rate & Invest.\ rate & Outflow \\
+\midrule
+\endfirsthead
+\multicolumn{6}{c}{\tablename\ \thetable\ -- continued}\\
+\toprule
+Bank & Risk appetite & Volatility & Loan rate & Invest.\ rate & Outflow \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on the next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+CentralBank & 0.3000 & 0.8246 & 0.000314 & 0.000307 & 0.2000 \\
+Bank1 & 0.2726 & 0.7815 & 0.000267 & 0.000283 & 0.3917 \\
+Bank2 & 0.1728 & 0.8041 & 0.000298 & 0.000299 & 0.4784 \\
+Bank3 & 0.0686 & 0.7080 & 0.000275 & 0.000293 & 0.4639 \\
+Bank4 & 0.2622 & 0.6701 & 0.000311 & 0.000303 & 0.4733 \\
+Bank5 & 0.2951 & 0.8054 & 0.000308 & 0.000286 & 0.4813 \\
+Bank6 & 0.1172 & 0.6208 & 0.000306 & 0.000295 & 0.4183 \\
+Bank7 & 0.0166 & 0.9944 & 0.000277 & 0.000295 & 0.3899 \\
+Bank8 & 0.2153 & 0.8579 & 0.000273 & 0.000297 & 0.4610 \\
+Bank9 & 0.0335 & 0.8511 & 0.000313 & 0.000324 & 0.3679 \\
+Bank10 & 0.1140 & 0.6325 & 0.000304 & 0.000329 & 0.4056 \\
+Bank11 & 0.2746 & 0.6911 & 0.000262 & 0.000302 & 0.4594 \\
+Bank12 & 0.0767 & 0.7833 & 0.000274 & 0.000302 & 0.4652 \\
+Bank13 & 0.0408 & 0.7533 & 0.000297 & 0.000302 & 0.4224 \\
+Bank14 & 0.1169 & 0.7726 & 0.000267 & 0.000293 & 0.3338 \\
+Bank15 & 0.2265 & 0.9998 & 0.000275 & 0.000320 & 0.3048 \\
+Bank16 & 0.0099 & 0.7210 & 0.000261 & 0.000316 & 0.3654 \\
+Bank17 & 0.2767 & 0.9675 & 0.000264 & 0.000298 & 0.4138 \\
+Bank18 & 0.0765 & 0.8197 & 0.000263 & 0.000290 & 0.4006 \\
+Bank19 & 0.2561 & 0.8479 & 0.000280 & 0.000303 & 0.3257 \\
+Bank20 & 0.1179 & 0.8603 & 0.000308 & 0.000310 & 0.4222 \\
+Bank21 & 0.1527 & 0.6293 & 0.000307 & 0.000298 & 0.3359 \\
+Bank22 & 0.0524 & 0.7790 & 0.000271 & 0.000296 & 0.4254 \\
+Bank23 & 0.2101 & 0.7341 & 0.000290 & 0.000283 & 0.3301 \\
+Bank24 & 0.1203 & 0.8892 & 0.000304 & 0.000300 & 0.4081 \\
+Bank25 & 0.1293 & 0.7952 & 0.000308 & 0.000286 & 0.3708 \\
+Bank26 & 0.1479 & 0.9776 & 0.000264 & 0.000303 & 0.3559 \\
+Bank27 & 0.1206 & 0.7941 & 0.000268 & 0.000299 & 0.3467 \\
+Bank28 & 0.2038 & 0.6607 & 0.000281 & 0.000326 & 0.4902 \\
+Bank29 & 0.0010 & 0.9008 & 0.000312 & 0.000297 & 0.4269 \\
+\end{longtable}

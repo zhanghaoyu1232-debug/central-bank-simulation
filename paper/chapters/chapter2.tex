@@ -1,0 +1,473 @@
+\chapter{Literature Review}
+
+\section{Systemic Risk and Financial Contagion}
+
+Systemic risk concerns the possibility that a disturbance initially
+confined to one institution or market segment spreads through financial
+linkages and feedback effects, eventually impairing the functioning of
+the broader financial system. It differs from the stand-alone risk of an
+individual bank because the scale of the final loss depends on how
+shocks are transmitted and amplified after they occur. Capital buffers,
+liquidity positions, and default probabilities remain important, but
+they do not by themselves determine the system-wide outcome. Bilateral
+claims, correlated asset holdings, and market responses also shape the
+direction and intensity of risk propagation {[}7{]}.
+
+Interbank claims are among the most direct channels of financial
+contagion. Allen and Gale show that mutual claims can help banks share
+regional liquidity shocks, although the same links can transmit losses
+when liquidity becomes scarce. A network that supports risk sharing in
+normal periods may therefore become a source of vulnerability under
+stress. Gai and Kapadia develop this argument by examining contagion
+across different network structures. Their results describe financial
+systems as ``robust yet fragile'': many small shocks may be absorbed
+without widespread failure, while a sufficiently large disturbance can
+trigger a rapid cascade once critical counterparties become distressed.
+Network connectivity should consequently be assessed together with the
+size of exposures and the liquidity available to absorb losses.
+
+Risk may also spread without a direct default relationship. Common asset
+holdings can force institutions to recognize losses at the same time,
+while fire sales depress market prices and weaken the balance sheets of
+banks that did not initially experience a funding problem. Runs, credit
+freezes, and declining confidence may reinforce these losses. Jackson
+and Pernoud group these mechanisms into direct externalities and
+feedback effects, emphasizing that systemic events usually emerge from
+the interaction of several channels rather than from a single bilateral
+exposure {[}6{]}. This broader perspective is relevant to interbank
+markets because a payment shortfall can affect both the creditor's
+balance sheet and its subsequent willingness or ability to provide
+funding.
+
+Network-based measures were developed partly because conventional
+institution-level indicators do not capture these transmission effects.
+DebtRank, proposed by Battiston et al., evaluates the potential distress
+that an institution can transmit through its financial connections
+{[}5{]}. The method illustrates why size alone is not a sufficient
+measure of systemic importance. A small bank may still have a large
+effect if it is linked to vulnerable counterparties or occupies a
+position through which losses can reach several parts of the network.
+Reviews of network models reach a similar conclusion: explicit claims,
+common exposures, liquidity dependence, and other implicit connections
+all influence the severity of systemic events {[}7, 8{]}.
+
+These studies establish that systemic risk depends on both bank
+conditions and the structure of financial connections. They also provide
+methods for analyzing contagion after a set of bilateral exposures has
+been specified. Less attention is given to the trading process through
+which those exposures are created before clearing begins. In many
+models, the network is treated as fixed or externally generated, even
+though actual interbank relationships change with funding demand,
+liquidity availability, interest-rate conditions, and counterparty
+selection. This thesis addresses that limitation by generating interbank
+loans endogenously under centralized matching and decentralized
+request-for-quote mechanisms. The comparison examines whether different
+trading processes produce different creditor--debtor networks and
+whether those differences alter subsequent clearing losses, capital
+stress, and systemic-risk dynamics.
+
+\section{Interbank Network Models}
+
+The interbank market can be represented as a directed and weighted
+financial network. Banks form the nodes, while interbank loan contracts
+define the edges between them. The direction of an edge identifies the
+creditor and debtor, and its weight records the size of the
+corresponding exposure. This representation captures both the
+distribution of interbank claims and the channels through which payment
+losses may later spread {[}17, 18{]}.
+
+Empirical studies show that real interbank markets are neither random
+nor uniformly connected. They are commonly characterized by sparse
+links, heterogeneous exposures, and substantial differences in node
+centrality {[}11, 18{]}. A limited number of institutions may act as
+major funding providers or intermediaries, while most banks trade with a
+limited set of counterparties. A bank's contribution to systemic risk
+therefore depends not only on its balance-sheet condition, but also on
+its position in the network and the size and direction of its exposures.
+
+Many theoretical models treat the interbank network as an exogenous
+input. Under this approach, researchers specify a complete, random,
+sparse, or core--periphery structure and then examine how shocks
+propagate through the imposed links. These studies show that
+connectivity does not have a uniformly stabilizing effect. Additional
+links may diversify small losses across several institutions, but they
+can also transmit a sufficiently large shock to a wider part of the
+system {[}4{]}. Network structure is therefore an important determinant
+of contagion, although this approach does not explain how the structure
+was formed.
+
+In actual markets, lending relationships change as banks respond to
+funding shortages, available liquidity, capital constraints,
+interest-rate requirements, and counterparty risk. Previous transactions
+may also affect the willingness of two banks to trade again,
+particularly during periods of financial stress {[}10{]}. A fixed
+network omits these decisions and assumes that the exposures through
+which contagion occurs already exist. This limits its ability to
+describe how risk concentration develops before payment difficulties
+emerge.
+
+Dynamic network models address this limitation by allowing bank
+conditions and financial links to evolve together. New loans change
+current liquidity positions and create future repayment obligations.
+Outstanding contracts remain part of the network until they mature,
+while repayment outcomes feed back into the resources available for
+subsequent trading. The network observed in a particular period
+therefore reflects both past lending decisions and current market
+conditions. This intertemporal structure is relevant to systemic-risk
+analysis because pressure may accumulate through repeated matching,
+persistent exposures, scheduled repayments, and clearing losses.
+
+The framework developed in this thesis follows this dynamic perspective.
+The simulated banking system contains a central bank, commercial banks,
+and shadow banks with different balance-sheet sizes, liquidity
+positions, regulatory conditions, and risk preferences. Each active
+institution may become a lender or borrower according to its current
+funding position. Completed transactions are stored as dated loan
+contracts containing the creditor, debtor, principal, interest rate, and
+maturity information. The outstanding contracts are then aggregated into
+the exposure and liability matrices required for network analysis and
+clearing.
+
+Interbank links are generated endogenously through two alternative
+matching mechanisms. Centralized matching processes lending supply and
+borrowing demand through a common market-wide allocation procedure. It
+serves as a coordination benchmark in which available information and
+funding opportunities can be considered jointly. Decentralized
+request-for-quote matching instead limits borrowers to a set of
+bilateral enquiries. Potential lenders decide whether and on what terms
+to quote, after which the borrower selects among the available offers.
+As a result, RFQ may leave part of the funding demand unmet even when
+the system contains sufficient aggregate liquidity. It may also create
+repeated relationships or concentrate exposures among institutions that
+are contacted more frequently.
+
+The difference between the two mechanisms concerns not only transaction
+efficiency but also network formation. Centralized allocation can
+distribute funds across a broader set of feasible counterparties,
+whereas RFQ depends on local access, quotation decisions, and bilateral
+selection. These differences can affect which banks obtain funding,
+which lenders accumulate claims, and how repayment losses are
+distributed when contracts mature. Holding the remaining balance-sheet
+rules, contract accounting, and clearing procedure constant makes it
+possible to relate later differences in systemic risk to the way the
+creditor--debtor network was created.
+
+Once scheduled obligations become due, the network shifts from loan
+formation to settlement. A borrower that cannot meet its promised
+payment reduces the amount received by its creditors, potentially
+weakening their liquidity and capital positions. A loan contract enters
+the risk process at several stages. Origination transfers liquidity
+between the counterparties, the remaining principal contributes to
+outstanding network exposure, and settlement may transmit losses if the
+borrower cannot pay in full. Following the contract across these stages
+links network formation directly to subsequent risk propagation.
+
+Recent research has extended financial-network analysis beyond
+single-layer interbank claims to bank--asset systems, bank--firm
+relationships, and multilayer financial networks {[}19--24, 26{]}.
+Despite differences in market setting, these studies reach a common
+conclusion: systemic vulnerability reflects the interaction between
+balance-sheet weakness and the structure of cross-institution exposures.
+The present framework builds on this literature but differs in one
+central respect. Rather than imposing a fixed network, it generates
+interbank claims through centralized matching and decentralized RFQ,
+preserves those claims as contracts, and follows them into later
+settlement and systemic-risk measurement.
+
+\section{Clearing Mechanisms}
+
+Interbank loan contracts create mutually dependent payment obligations
+between creditor and debtor banks. When one borrower cannot meet its
+scheduled obligation in full, its creditors receive less than expected
+and may in turn experience additional liquidity or capital pressure. A
+clearing mechanism is therefore required to determine a payment vector
+that is jointly feasible across the liability network rather than
+evaluating each bank in isolation.
+
+The Eisenberg--Noe framework provides a standard basis for this analysis
+{[}2{]}. Its central contribution is to represent each bank's payment as
+the smaller of its nominal obligation and the resources available from
+external assets and incoming payments. Limited liability and
+proportional repayment then determine how a shortfall is distributed
+among creditors. Because incoming payments depend on the payments made
+by other banks, the clearing outcome must be solved simultaneously for
+the system as a whole.
+
+Subsequent studies extend this framework by considering alternative
+recovery assumptions, bankruptcy costs, intervention rules, and external
+financial support {[}9{]}. These extensions show that contagion depends
+not only on the liability network but also on the institutional rules
+governing settlement and support. Nevertheless, the original framework
+remains useful as a transparent benchmark for tracing how contractual
+payment shortfalls propagate through interbank claims.
+
+A dynamic model requires a further distinction between outstanding
+exposure and payment currently due. An active loan may remain in the
+network for several periods, while only the principal, installment, or
+coupon scheduled for the current date should enter clearing. Treating
+the entire outstanding balance as immediately payable would bring future
+obligations forward and could cause the same contractual amount to be
+processed more than once.
+
+This thesis adopts the Eisenberg--Noe framework for due-payment clearing
+after interbank claims have been generated through centralized matching
+or decentralized RFQ. The same clearing rule is used under both
+mechanisms, allowing differences in payment shortfalls and subsequent
+risk dynamics to be related to the creditor--debtor structures created
+during matching. The liability-matrix construction, fixed-point
+solution, balance-sheet updates, and implementation of the dated
+contract book are specified in Chapter~5.
+
+\section{Liquidity and Solvency Regulation}
+
+Capital and liquidity regulation provides an important link between
+individual bank conditions and the stability of the wider financial
+system. Capital determines the extent to which a bank can absorb losses,
+whereas liquidity determines whether it can meet obligations when they
+become due. These two dimensions are related but not interchangeable. A
+bank may have sufficient capital yet encounter payment difficulties
+because its assets cannot be converted into cash quickly enough.
+Conversely, a bank with adequate short-term liquidity may remain
+vulnerable if its capital buffer is too small to absorb losses.
+
+The Basel III framework places particular emphasis on risk-sensitive
+capital requirements. Rather than assessing capital relative to the
+nominal size of a bank's balance sheet, the capital adequacy ratio
+relates eligible capital to risk-weighted assets {[}14{]}. Assets with
+different risk characteristics therefore make different contributions to
+the capital requirement. This principle is especially relevant to
+interbank network analysis because losses on interbank claims and
+project investments can weaken a bank's capital position and reduce its
+capacity to withstand subsequent shocks.
+
+Liquidity regulation addresses a different source of vulnerability. The
+regulatory liquidity coverage ratio compares high-quality liquid assets
+with expected net cash outflows over a stressed period {[}12{]}. The net
+stable funding ratio complements this short-horizon test by relating
+available stable funding to required stable funding over a longer
+horizon {[}13{]}. The present study operates at a daily frequency and
+uses a simplified balance-sheet structure, so its liquidity measure
+should be interpreted as a model-based proxy rather than a complete
+implementation of either Basel III liquidity standard. The proxy
+nevertheless captures the central economic relationship: liquidity
+pressure rises when available liquid assets become insufficient relative
+to expected funding outflows.
+
+Capital and liquidity conditions can also influence banks before formal
+default occurs. A bank facing a liquidity shortage may seek interbank
+funding even when it remains solvent, while a bank with a weak capital
+position may continue trading despite having limited capacity to absorb
+further losses. Regulatory indicators therefore provide information
+about emerging vulnerability that cannot be obtained from failure status
+alone. This difference matters in a dynamic interbank network,
+where payment shortfalls may weaken creditor banks before any
+institution is classified as failed.
+
+These conditions also shape market behavior. Banks with excess liquidity
+may supply funds, whereas institutions facing short-term funding
+pressure are more likely to borrow. Capital weakness can affect
+resilience when interbank claims are not repaid in full, and settlement
+losses may alter both capital and liquidity positions in later periods.
+Regulation is therefore connected to network formation as well as risk
+propagation: balance-sheet conditions influence trading decisions, while
+the resulting lending relationships create exposures that feed back into
+future balance sheets.
+
+In the model, capital, liquidity, solvency, leverage, and activity status
+are treated as evolving bank characteristics rather than static
+regulatory observations. They are updated as market conditions,
+investment outcomes, interbank transactions, and clearing results
+change. The precise formulas, stress thresholds, system-level
+indicators, and weighting scheme used in the simulation are specified in
+Section~3.4.
+
+\section{Matching Mechanisms in Interbank Markets}
+
+Interbank networks are shaped not only by banks' balance-sheet
+conditions but also by the process through which lenders and borrowers
+meet. The matching mechanism determines which banks become
+counterparties, how much funding is exchanged, and what contractual
+terms are accepted. It therefore affects the number, direction, and size
+of links in the resulting network. When these links are imposed in
+advance, the analysis can examine contagion only after exposures already
+exist. In the present framework, interbank relationships are instead
+generated during the simulation, allowing network formation and
+subsequent risk propagation to be studied within the same process.
+
+The analysis compares centralized allocation with decentralized
+request-for-quote matching. Both mechanisms use the same bank states,
+regulatory constraints, contract-accounting rules, and clearing
+procedure. Their main difference lies in how information is used and how
+counterparties are selected. Centralized matching coordinates lending
+supply and borrowing demand across the market, whereas RFQ limits each
+borrower to a set of bilateral enquiries and quotations. Holding the
+remaining modules fixed makes the matching rule the main source of
+variation in funding outcomes and network structure.
+
+\subsection{Centralized Matching Mechanism}
+
+Centralized matching is used as the benchmark mechanism. At the
+beginning of the matching stage, active banks are classified as lenders
+or borrowers according to their liquidity positions and financing needs.
+Each lender has a maximum amount of funds available for lending, while
+each borrower has a specified funding demand.
+
+The allocation procedure considers lenders and borrowers jointly. A
+feasible loan plan is constructed subject to lender supply, borrower
+demand, the upper limit on a single loan, network-degree restrictions,
+interest-rate compatibility, and any applicable rollover constraints. A
+borrower completes the transaction only when its demand can be satisfied
+under these conditions. Otherwise, no new loan is created for that
+borrower in the current period.
+
+When a match is completed, the lender's liquid assets decrease and the
+borrower's liquid assets increase by the transaction amount. The trade
+is then stored as a dated contract containing the identities of the two
+banks, the principal, the interest rate, and the maturity structure.
+Because contracts remain active until their scheduled obligations are
+settled, the interbank network is reconstructed from both newly issued
+loans and exposures inherited from earlier periods.
+
+Centralized matching represents a coordinated market environment.
+Lending opportunities can be considered across the feasible market
+rather than through a sequence of isolated bilateral enquiries. This
+generally allows available liquidity to be allocated more efficiently
+and may reduce unmet borrowing demand. The mechanism is nevertheless an
+idealized benchmark, since real interbank markets do not always provide
+complete information or a single process capable of coordinating all
+transactions.
+
+\subsection{Decentralized RFQ Matching Mechanism}
+
+The decentralized mechanism follows a request-for-quote process. Banks
+first form trading intentions from their current balance-sheet and
+regulatory conditions. A lender's intended supply depends mainly on the
+liquidity available above its target buffer, together with its
+willingness to bear risk. A borrower's intended demand reflects its
+funding gap, investment needs, and regulatory constraints. These
+intentions convert individual bank conditions into potential lending
+supply and borrowing demand.
+
+A borrower does not submit its demand to a unified allocation process.
+Instead, it contacts a limited number of candidate lenders and requests
+quotations. Each lender decides whether to respond and what terms to
+offer based on its remaining liquidity, minimum acceptable lending rate,
+risk preference, and assessment of the borrower. The borrower then
+selects among the quotations it has received.
+
+A transaction is created only when an acceptable bilateral quote is
+available. Completed trades are stored in the same contract book used
+under centralized matching, so the subsequent accounting and clearing
+procedures remain unchanged. The simulation also records funding
+outcomes such as total lending supply, total borrowing demand,
+transaction volume, funding satisfaction, unmet demand, the number of
+completed trades, and average lending rates.
+
+The RFQ mechanism changes access to funding even when aggregate market
+liquidity is sufficient. A borrower may fail to obtain the required
+amount because it contacts unsuitable lenders, receives quotations above
+its acceptable rate, or is rejected because of counterparty risk.
+Funding availability therefore depends on local access and bilateral
+decisions rather than on system-wide supply alone.
+
+This process can also produce a more uneven network. Banks that are
+frequently contacted or have strong liquidity positions may accumulate a
+larger number of claims, while other institutions remain weakly
+connected. Repeated bilateral selection may create persistent trading
+relationships or concentrate exposures among a small group of lenders.
+These outcomes are not imposed in advance; they emerge from the enquiry
+and quotation process.
+
+\subsection{Comparison of Two Matching Mechanisms}
+
+The central distinction between the two mechanisms concerns information
+and counterparty access. Centralized matching evaluates feasible supply
+and demand through a common allocation procedure. RFQ relies on limited
+enquiries, lender-specific quotations, and borrower choice. The
+difference is therefore not simply whether a loan is approved, but which
+banks can reach each other and how lending capacity is distributed among
+them.
+
+Centralized matching considers a broader set of feasible counterparties,
+but its all-or-nothing borrower rule may leave a borrower entirely
+unfunded when complete coverage is unavailable. RFQ permits partial
+funding but restricts access to a local candidate set. The relative
+funding performance of the two mechanisms is therefore determined by the
+simulation rather than assumed in advance.
+
+RFQ introduces a different trade-off. Limited access and quotation
+frictions may leave part of the borrowing demand unmet, causing
+liquidity stress to appear earlier for some banks. However, the smaller
+candidate set does not necessarily produce a less risky network. If the
+same liquid banks are repeatedly selected, exposures may become
+concentrated, and losses at settlement may be borne by a small group of
+creditors.
+
+The comparison is conducted under the same balance-sheet updates,
+regulatory rules, contract treatment, and Eisenberg--Noe clearing
+procedure. Any difference in later payment shortfalls or systemic-risk
+indicators can therefore be related to the networks created by the
+matching process rather than to different settlement assumptions. The
+causal sequence is:
+
+
+\begin{equation}
+\begin{aligned}
+\text{Bank states}&\rightarrow\text{lender and borrower roles}\rightarrow\text{matching}\rightarrow\text{loan contracts}\\
+&\rightarrow\text{maturity payments}\rightarrow\text{clearing outcomes}\rightarrow\text{systemic risk}.
+\end{aligned}
+\end{equation}
+
+
+Under this design, the matching mechanism affects systemic risk through
+several channels. It changes the degree to which borrowing demand is
+satisfied, determines which banks accumulate claims, alters the
+concentration and maturity of exposures, and shapes the liability matrix
+used during clearing. The experimental analysis therefore focuses on
+whether centralized allocation and decentralized RFQ produce different
+funding outcomes, network structures, and subsequent paths of liquidity
+pressure, capital stress, and default contagion.
+
+\section{Research Gap}
+
+The literature establishes that contagion depends on both balance-sheet
+capacity and the pattern of interbank claims, but these two strands are
+often studied at different stages. Clearing models explain how losses
+propagate through a given liability matrix, whereas empirical and
+network studies describe sparsity, concentration, and centrality in
+observed systems. Neither strand alone explains how a trading rule
+creates the matrix that is later cleared.
+
+A second gap concerns time. Static exposure matrices are useful for
+stress tests, yet they do not distinguish a loan that remains
+outstanding from a payment that is contractually due today. Once
+maturities, installments, coupons, and rollover are introduced, this
+distinction becomes necessary; otherwise the same principal can enter
+clearing repeatedly or future obligations can be treated as immediately
+payable.
+
+The matching literature adds a further issue. Centralized allocation is
+informative as a high-coordination benchmark, but over-the-counter
+trading depends on limited enquiries and bilateral acceptance. Comparing
+the two within one balance-sheet and clearing framework isolates a
+practical question: does local trading reduce contagion by limiting
+links, or increase realized failures because liquidity does not reach
+some borrowers?
+
+The present study addresses these gaps with a daily contract book. Bank
+states generate supply and demand, the matching rule creates new
+contracts, only scheduled payments enter the Eisenberg--Noe liability
+matrix, and the clearing result feeds back into the next
+day\textquotesingle s state. The contribution is therefore not a new
+clearing theorem; it is an integrated setting in which network
+formation, contract persistence, and clearing can be compared under
+controlled simulation conditions.
+
+The resulting framework combines bank-level capital and liquidity
+conditions with endogenous network formation and due-payment clearing.
+Centralized matching and decentralized RFQ are compared under the same
+balance-sheet, contract-accounting, and clearing rules, while systemic
+risk is evaluated through failures, capital stress, and capital
+shortfalls. This design makes it possible to identify whether
+differences in risk dynamics arise from the trading process that creates
+interbank exposures.

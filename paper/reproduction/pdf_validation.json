@@ -1,0 +1,33 @@
+{
+  "page_count": 116,
+  "build_engine": "XeLaTeX via latexmk",
+  "missing_character_warnings": 0,
+  "overfull_box_warnings": 0,
+  "unresolved_reference_warnings": 0,
+  "page_bounds_violations": [],
+  "visually_reviewed_pdf_pages": [
+    3,
+    4,
+    30,
+    31,
+    32,
+    33,
+    54,
+    67,
+    70,
+    72,
+    78,
+    79,
+    80,
+    81,
+    90,
+    107,
+    110,
+    111,
+    112,
+    115,
+    116
+  ],
+  "pdf_sha256": "86d48086e51f7fb92fa30317e4e4dab1b9a3ffb5b1bbdaa78410785b6f8a3af8",
+  "delivered_pdf_filename": "Dynamic_Interbank_Network_Formation_revised_20260908.pdf"
+}

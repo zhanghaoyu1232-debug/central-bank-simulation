@@ -1,0 +1,278 @@
+\chapter{Introduction}
+
+\section{Research Background}
+
+The banking system performs important functions in modern financial
+markets, including capital allocation, credit creation, and liquidity
+provision. Banks are not only connected with firms, households,
+governments, and other sectors, but also conduct short-term funding,
+liquidity adjustment, and risk sharing through the interbank market. The
+banking system should not be regarded as a collection of independent
+financial institutions. Instead, it can be understood as a complex
+financial network formed by multiple creditor-debtor
+relationships {[}1{]}.
+
+Under normal market conditions, interbank transactions help improve the
+efficiency of fund allocation and relieve short-term liquidity pressure
+on individual institutions. However, when the market is affected by
+external shocks or when some banks experience liquidity or solvency
+problems, the interbank connections originally used for liquidity
+sharing may also become channels for risk transmission {[}3{]}. In this
+sense, interbank networks have a dual role: they can improve the
+allocation of liquidity in stable periods, but they may also amplify
+financial contagion during periods of stress.
+
+Systemic risk is one of the core issues in financial stability research.
+Unlike the individual risk of a single financial institution, systemic
+risk focuses on how local shocks are transmitted through balance sheet
+linkages, payment obligations, and market feedback among financial
+institutions, and how these shocks further affect the stability of the
+entire financial system. In an interbank market, this process is closely
+related to creditor-debtor relationships. When a bank cannot repay its
+interbank debt on time because of insufficient liquidity or capital, the
+asset quality and cash flow of its creditor banks may also be affected.
+If these creditor banks have weak capital buffers or insufficient
+liquidity reserves, the initial shock may continue to spread to other
+banks and eventually lead to chain defaults or widespread capital
+stress.
+
+The clearing process in a multilateral interbank debt network provides
+an important mechanism for understanding this type of risk propagation.
+In such a network, the final payment result is not simply determined by
+whether one bank defaults individually. Instead, each bank's actual
+payment ability depends not only on its own available resources, but
+also on the payments it receives from other banks. The Eisenberg--Noe
+clearing framework provides a theoretical basis for analyzing payment
+relationships and default propagation in financial networks with
+interdependent obligations {[}2{]}.
+
+The 2008 global financial crisis further showed that complex debt
+relationships and liquidity dependence among financial institutions can
+significantly amplify initial shocks. After the collapse of Lehman
+Brothers, confidence in financial markets declined rapidly, interbank
+funding conditions deteriorated, market liquidity contracted sharply,
+and risks spread from individual institutions to the broader financial
+system. This experience indicates that analyzing the financial condition
+of a single bank is not sufficient for assessing overall financial
+stability. It is also necessary to consider interbank network
+connections, debt clearing relationships, and market transaction
+mechanisms {[}6{]}. More recent banking turmoil in 2023 also highlighted
+the importance of liquidity risk, confidence shocks, and rapid stress
+transmission in modern banking systems {[}25{]}.
+
+In banking supervision, indicators such as the capital adequacy ratio,
+liquidity coverage ratio, and net stable funding ratio are widely used
+to measure bank soundness. The capital adequacy ratio reflects a bank's
+ability to absorb losses, the liquidity coverage ratio reflects its
+ability to cope with short-term cash flow pressure, and the net stable
+funding ratio measures the stability of its medium- and long-term
+funding sources. The Basel III framework strengthened capital and
+liquidity regulatory requirements after the global financial
+crisis {[}12--14{]}. However, in systemic risk analysis,
+changes in individual bank regulatory indicators cannot fully describe
+the process of risk propagation through a network. Whether a bank
+contributes to systemic risk depends not only on its own balance sheet,
+but also on its position in the interbank network, its creditor-debtor
+relationships with other banks, and the mechanism through which funds
+are reallocated in the market.
+
+Interbank lending relationships add another difficulty: they are not
+fixed. To simplify the analysis, many existing studies assume that the
+interbank network structure is exogenously given, or analyze shock
+propagation on a static network. However, in real markets, interbank
+lending relationships are continuously formed and adjusted during the
+trading process. These relationships are affected by liquidity
+conditions, funding needs, interest rate requirements, risk preferences,
+and counterparty selection {[}10, 11{]}. It is important to study how
+interbank networks are formed under different loan matching mechanisms
+and how this network formation process affects the propagation of
+systemic risk.
+
+The central question is whether alternative transaction designs change
+how interbank exposures are formed and how quickly systemic stress is
+realized when otherwise comparable banks face the same market
+environment. The simulations keep bank types, initial balance-sheet
+rules, regulatory thresholds, contract accounting, and the clearing
+method common while changing the organization of matching. The
+centralized benchmark performs market-wide rate-based allocation on each
+business day, whereas decentralized RFQ operates through limited bilateral
+enquiries and a locally observed counterparty pool. A system of 30
+institutions---one central bank, 20 commercial banks, and nine shadow
+banks---is followed in business-day steps, so a loan agreed today can
+affect liquidity, repayment pressure, and clearing outcomes on later
+days.
+
+\section{Research Motivation}
+
+Systemic risk in the interbank market emerges from the interaction of
+bank-specific conditions, bilateral exposures, market liquidity, and
+trading arrangements. A substantial part of the literature examines
+contagion on a given network, focusing on how the default of one
+institution affects others through existing claims {[}4{]}. This approach
+provides the basis for analyzing clearing and default propagation, but
+it treats the network itself as fixed. In practice, interbank exposures
+change as banks respond to funding needs, liquidity constraints,
+interest-rate conditions, and counterparty risk {[}10{]}. A static
+network therefore omits the lending decisions through which exposures
+are created and concentrated before clearing begins.
+
+This study treats network formation as part of the risk process rather
+than as an external input. Financial stress may accumulate during loan
+matching, even before any bank defaults. Repeated borrowing from a
+limited group of lenders can concentrate exposures, while unsuccessful
+funding requests can leave some borrowers under liquidity pressure. The
+identity of the matched counterparties, the amount of unmet demand, and
+the distribution of lending across institutions may all influence which
+banks become vulnerable later. The analysis therefore links the
+formation of interbank loans with subsequent balance-sheet changes and
+clearing outcomes.
+
+The second motivation of the study is to compare how different interbank
+transaction designs affect systemic risk. Centralized matching is used
+as a high-coordination benchmark in which current orders are evaluated
+jointly across the market on every business day. By contrast,
+decentralized request-for-quote matching restricts borrowers to local
+enquiries and bilateral quotations, which more closely reflects the fragmented and
+over-the-counter nature of many interbank transactions {[}11{]}. Under
+RFQ, system-wide liquidity may be sufficient even though an individual
+borrower cannot obtain an acceptable quote. The comparison therefore
+captures differences in information scope, counterparty access,
+funding-completion rules, and pricing while keeping daily transaction timing and
+the subsequent contract-accounting and clearing procedure common.
+
+Liquidity pressure, capital stress, and payment contagion are examined
+within a common framework, although they represent distinct forms of
+financial distress. A bank may remain solvent while being unable to meet
+a short-term payment, or it may maintain sufficient liquidity while
+having only a limited capital buffer. Losses transmitted through
+interbank claims can subsequently weaken both positions {[}15, 16{]}.
+For this reason, the simulation tracks liquidity conditions, capital
+adequacy, interbank assets and liabilities, contractual payments, and
+clearing results. Systemic risk is then evaluated through a composite
+indicator that includes the bank failure rate, the share of banks under
+capital stress, and the aggregate capital gap.
+
+The results may depend on how regulatory stress and aggregate risk are
+measured. Raising the capital adequacy threshold applies a stricter
+criterion and may classify a larger number of banks as
+capital-constrained {[}14{]}. Similarly, changing the weights assigned to
+failures, capital stress, and capital shortfalls alters the
+responsiveness of the composite risk measure. The study therefore
+conducts sensitivity tests for both the capital adequacy threshold and
+the systemic-risk weights. Overall, the proposed framework compares
+centralized matching and decentralized RFQ under otherwise consistent
+bank characteristics, market conditions, contract accounting, and
+clearing procedures. This design makes it possible to identify whether
+differences in systemic-risk dynamics originate from the way interbank
+exposures are formed.
+
+\section{Research Purpose}
+
+This study aims to develop a dynamic interbank network simulation
+framework for examining whether different transaction designs lead to
+different interbank network structures, funding outcomes, and
+systemic-risk dynamics. In contrast to models that impose a fixed
+interbank network, bilateral lending relationships are generated
+endogenously from banks' changing balance-sheet conditions and trading
+decisions.
+
+The study compares a daily centralized market-wide allocation mechanism
+with a daily decentralized request-for-quote mechanism under common bank
+characteristics, market conditions, contract-accounting rules, and
+due-payment clearing. Rollover and policy support are then switched on
+and off to examine how repayment timing and intervention affect the
+speed at which systemic stress emerges. Formal experiments use a
+pre-specified 1,000-business-day horizon and stop early only if the number
+of surviving non-central banks falls to one or fewer. Runs that do not
+collapse by the horizon are treated as right-censored in survival-related
+statistics.
+
+The study addresses the following research questions:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  Do daily centralized matching and daily decentralized RFQ produce
+  different interbank network structures and funding outcomes?
+\item
+  Do the two transaction designs generate different paths and timing of
+  payment shortfalls, bank failures, capital stress, and systemic risk
+  when they are compared over the same elapsed time?
+\item
+  How do rollover and policy support alter the timing and relative
+  evolution of systemic risk, and do the qualitative conclusions remain
+  stable under changes in the CAR threshold and the weights of the
+  composite systemic-risk indicator?
+\end{enumerate}
+
+\section{Research Content and Methods}
+
+The study constructs a discrete-time simulation model in which
+heterogeneous banks adjust their balance sheets, form interbank loans,
+maintain outstanding contracts, settle scheduled obligations, and update
+their risk conditions over multiple business days. Interbank lending
+relationships are generated endogenously rather than imposed as a fixed
+network.
+
+Two transaction mechanisms are implemented within the same balance-sheet
+and clearing framework. The centralized mechanism executes market-wide
+rate-based allocation every business day and requires complete borrower
+funding before tentative trades are committed. The decentralized RFQ
+mechanism also operates every business day, but limits each borrower to a
+locally constructed lender pool and retains acceptable partial trades.
+The resulting comparison therefore isolates differences in information
+scope, counterparty discovery, pricing, and allocation more closely than
+a design with unequal trading frequencies.
+
+The rollover switch selects the repayment schedule when a trade is
+originated. When rollover is enabled, each new loan is recorded as a
+5--20-period amortizing installment contract. When it is disabled, the
+loan is a next-day single-payment contract. Policy support can provide
+next-period liquidity assistance and same-day post-project
+solvency/capital assistance. The four ON/OFF combinations of rollover and
+policy support are compared under both transaction mechanisms.
+
+Systemic risk is evaluated using the bank failure rate, capital-stress
+share, and capital-gap ratio, both separately and through a composite
+indicator. Monte Carlo replications account for stochastic initial
+conditions, market changes, shocks, and RFQ enquiries. The formal design
+uses 20 paired replications over (T=1000) business days. Early stopping is
+reserved for systemic collapse, defined operationally as one or fewer
+surviving non-central banks; temporary network stability does not terminate
+a formal run.
+
+Sensitivity analyses examine the CAR threshold and the weights assigned
+to the systemic-risk components, while a structural robustness check
+varies the single-loan cap.
+
+\section{Thesis Structure}
+
+Chapter~1 introduces the research background, motivation, purpose,
+research questions, and methodological approach.
+
+Chapter~2 reviews the literature on systemic risk, financial contagion,
+interbank networks, clearing mechanisms, prudential regulation, and
+interbank matching, and identifies the research gap addressed by this
+study.
+
+Chapter~3 presents the overall model framework, including bank types,
+state variables, market conditions, regulatory indicators, and the
+dynamic simulation process.
+
+Chapter~4 explains the daily centralized market-wide mechanism, the daily
+decentralized RFQ mechanism, and the origination-based rollover and coupon
+payment rules.
+
+Chapter~5 describes the Eisenberg--Noe clearing procedure, the
+bank-failure definition, and the measurement of systemic risk.
+
+Chapter~6 specifies the simulation settings, collapse stopping rule,
+bank population, feature scenarios, paired Monte Carlo procedure,
+common-horizon comparison rule, and sensitivity analyses.
+
+Chapter~7 reports and discusses the common-horizon results for the two
+matching mechanisms, the rollover/support scenarios, network formation,
+and the parameter-sensitivity experiments.
+
+Chapter~8 summarizes the main findings, contributions, limitations, and
+possible directions for future research.

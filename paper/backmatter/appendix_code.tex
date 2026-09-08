@@ -1,0 +1,128 @@
+\appendix
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix}
+
+\chapter{Key Simulation Code}
+\label{app:key-code}
+
+This appendix retains only condensed algorithm extracts for the rules used
+in Chapters~6 and~7. Initialization, plotting, file export, diagnostics, and
+Monte Carlo orchestration are omitted. The listings provide a formula-to-code
+map: centralized matching every
+business day (\texttt{centralized\_cycle\_length=1}); RFQ with four rounds
+and \(K=4\); installment origination when rollover is ON and next-day single
+payment when it is OFF; and early stopping only when one or fewer
+non-central banks remain active. The complete executable source, realized
+seeds, raw artifacts, dependency specification, and figure/table scripts are
+supplied in the electronic reproduction materials described in Section~6.1.
+The study's repository address is
+\begin{center}\small
+\url{https://github.com/zhanghaoyu1232-debug/central-bank-simulation}
+\end{center}
+The supplied core source and formal artifacts share fingerprint
+\texttt{11dda58061ded609}; the reproduction manifest records full-file
+checksums. The listings below are condensed extracts; the complete
+source remains the executable reference.
+
+\section{Contracts, Origination-Based Rollover, Gross Due-Payment Aggregation, and Role Assignment}
+
+Listing~\ref{lst:model-core} reflects the current contract treatment. The
+rollover switch selects the repayment schedule when the trade is originated.
+Rollover ON registers a 5--20-period amortizing installment contract
+immediately. Rollover OFF registers a one-business-day single-payment
+contract. The current code does not first create a 10-day bullet loan and does
+not convert principal at a later maturity date. The listing also shows the
+gross debtor-to-creditor orientation used to build due-payment liabilities.
+
+\lstinputlisting[
+  caption={Current contract structures, origination-based rollover, gross due-payment aggregation, and role assignment},
+  label={lst:model-core}
+]{backmatter/code/model_core.py}
+
+\section{Centralized Matching}
+
+The centralized mechanism updates each bank's latest order and executes a
+market-wide allocation on every business day. The formal experiments set the
+matching cycle length to 1, so there is no 15-business-day batch delay.
+Executable quantities are reconfirmed from current bank states. The allocation
+is rate-prioritized and subject to capacity, degree, and single-loan
+constraints. Borrower funding is all-or-nothing: provisional allocations are
+committed only when the complete demand can be assembled.
+
+\lstinputlisting[
+  caption={Daily centralized matching with a borrower-level full-funding rule},
+  label={lst:centralized-core}
+]{backmatter/code/centralized_matching_core.py}
+
+\section{Decentralized RFQ Matching}
+
+The decentralized RFQ mechanism is executed every business day. Each borrower
+constructs one local lender pool. Outstanding rollover lenders are retained
+and do not consume the new-discovery budget of eight lenders. The borrower may
+then conduct up to four quotation rounds and contact at most \(K=4\) lenders
+per round. Accepted bilateral trades are retained even when the borrower's
+total demand is not fully satisfied. The listing records every lender source,
+the discovery and random-exploration limits, exclusion after rejection or
+capacity exhaustion, the changing candidates across rounds, and the retained
+partial-funding rule. The complete GNN feature and scoring functions are
+included in the electronic source snapshot.
+
+\lstinputlisting[
+  caption={Four-round decentralized RFQ matching with local counterparty search and retained partial funding},
+  label={lst:rfq-core}
+]{backmatter/code/decentralized_rfq_core.py}
+
+\section{Eisenberg--Noe Clearing, Creditor Losses, and Systemic Risk}
+
+Listing~\ref{lst:clearing-risk-core} uses a non-negative debtor-to-creditor
+liability matrix, so reciprocal obligations remain separate rather than being
+bilaterally netted. Actual creditor receipts are determined by the
+Eisenberg--Noe fixed point, and bilateral unpaid claims are then aggregated by
+creditor. Accounting equity is evaluated before regulatory
+core capital is truncated at zero, allowing negative-equity insolvency to be
+identified explicitly. No contemporaneous liquidity facility is inserted into
+the clearing matrix.
+
+\lstinputlisting[
+  caption={Gross Eisenberg--Noe clearing, creditor-payment allocation, accounting-equity failure, and systemic-risk measurement},
+  label={lst:clearing-risk-core}
+]{backmatter/code/clearing_and_risk_core.py}
+
+\section{Period Update Sequence}
+
+Listing~\ref{lst:period-update-core} summarizes the current business-day
+sequence. Queued liquidity support is disbursed first. Currently due interbank
+payments are then settled, after which eligible liquidity support is queued
+for the next business day. Matching forms new installment or single-payment
+contracts according to the rollover switch. After project returns,
+solvency/capital support may be applied. Unpaid ON installments become
+arrears, unpaid OFF single payments cause hard default, and creditor
+write-offs are propagated recursively until no new insolvency appears. The
+post-EN negative-equity cascade is entered even when the payment-default
+list is empty. Each cascade iteration rebuilds positions, calculates
+untruncated accounting equity, and resolves newly insolvent banks before
+the next iteration. The post-project cascade is executed before risk
+measurement. The adjacent resolution extract shows the creditor recovery
+pool and write-off calculation. Network stability is recorded as a
+diagnostic and does not terminate a formal run. A run ends at day
+\(T=1000\) unless one or fewer non-central banks remain active.
+
+\lstinputlisting[
+  caption={Condensed current period sequence with daily matching, origination-based rollover, and horizon-based stopping},
+  label={lst:period-update-core}
+]{backmatter/code/period_update_core.py}
+
+The resolution batch freezes the failure cohort before distributing
+recoveries. Claims held by a failed lender against surviving borrowers
+are transferred to the central bank at their recovery value, subject to
+central-bank cash. The resulting estate cash is distributed pro rata to
+eligible surviving creditors, up to the LGD recovery cap. Original claims
+are removed, interbank positions are rebuilt, and equity is recomputed;
+the diagnostic write-off is not deducted a second time from equity.
+
+\lstinputlisting[
+ caption={Creditor recovery and write-offs within the absorbing-default batch},
+ label={lst:resolution-core}
+]{backmatter/code/resolution_core.py}
+
+\input{backmatter/appendix_initial_bank_data}

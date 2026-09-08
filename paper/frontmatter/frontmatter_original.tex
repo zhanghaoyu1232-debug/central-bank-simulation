@@ -1,0 +1,98 @@
+% Japanese and English cover pages, followed by Roman-numbered abstracts.
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+{\Large 2026年度 修士論文\par}
+\vspace{2.6cm}
+{\LARGE\bfseries システミックリスク分析に向けた\par}
+\vspace{0.4cm}
+{\LARGE\bfseries 動的銀行間ネットワーク形成\par}
+\vfill
+{\large 福岡工業大学大学院 工学研究科\par}
+\vspace{0.35cm}
+{\large システムマネジメント専攻\par}
+\vspace{1.5cm}
+{\large 学籍番号：JM24201\par}
+\vspace{0.25cm}
+{\large チョウ　コウウ\par}
+{\large 張　浩宇\par}
+\vspace{1.35cm}
+{\large 指導教員：傅　靖 准教授\par}
+\vfill
+{\large 提出日 2026年9月16日\par}
+\end{titlepage}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+{\Large 2026 Master's Thesis\par}
+\vspace{2.2cm}
+{\LARGE\bfseries Dynamic Interbank Network Formation\par}
+\vspace{0.35cm}
+{\LARGE\bfseries for Systemic Risk Analysis\par}
+\vfill
+{\large System Management\par}
+{\large Master's Program\par}
+{\large Graduate School of Engineering\par}
+{\large Fukuoka Institute of Technology\par}
+\vspace{1.5cm}
+{\large ZHANG Haoyu\par}
+{\large Student ID: JM24201\par}
+\vspace{1.35cm}
+{\large Under the Supervision of\par}
+{\large Associate Professor Jing Fu\par}
+\vfill
+{\large September 16, 2026\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\setcounter{page}{1}
+\chapter*{要　旨}
+\addcontentsline{toc}{chapter}{要　旨}
+\begin{center}
+{\large\bfseries システミックリスク分析に向けた動的銀行間ネットワーク形成\par}
+\vspace{0.4em}
+大学院工学研究科修士課程\quad システムマネジメント専攻\par
+JM24201　張　浩宇
+\end{center}
+\vspace{0.8em}
+\begin{japaneseabstract}
+銀行間市場は，金融機関同士が短期資金の調達や流動性調整を行う重要な場である。一方で，銀行間に形成される債権・債務関係は，システミックリスクの伝播経路にもなり得る。従来の研究では，静的なネットワーク構造や単一の清算メカニズムに着目するものが多く，市場取引の過程における銀行間貸出関係の動的形成については，十分に検討されていない。そこで本研究では，異なる貸出形成メカニズムがシステミックリスクの伝播に与える影響を分析するため，動的銀行間ネットワークのシミュレーション枠組みを構築する。
+
+本モデルは，銀行のバランスシート，流動性制約，自己資本比率制約，銀行間貸出のマッチング，および \mbox{Eisenberg--Noe} に基づく債務清算を統合したものである。各期において，各銀行を貸し手，借り手，または非参加銀行に分類し，貸し手と借り手の間の取引について，集中型マッチング方式と分散型 RFQ（Request-for-Quote）方式を比較する。また，銀行破綻率，自己資本比率規制違反銀行の割合，および資本不足率を組み合わせた複合的なシステミックリスク指標を用いて評価を行う。シミュレーションでは，両方式のシステミックリスク経路は概ね類似している。集中型マッチングはより協調的な貸出関係を形成する一方，RFQ はより局所的な取引関係を形成し，未充足の資金需要にさらされやすい。基準設定では，RFQ のシステミックリスクは中後期に集中型マッチングをわずかに上回るが，その差は限定的である。現在のキャリブレーションの下では，自己資本比率閾値を変更しても，複合的なシステミックリスク経路への影響は限定的である。
+\end{japaneseabstract}
+\vspace{0.7em}
+\noindent\textbf{キーワード：}システミックリスク，銀行間ネットワーク，動的シミュレーション，RFQ，\mbox{Eisenberg--Noe} 清算
+\vfill
+\begin{flushright}2026年9月16日\end{flushright}
+
+\clearpage
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\begin{center}
+{\large\bfseries Dynamic Interbank Network Formation for Systemic Risk Analysis\par}
+\vspace{0.35em}
+JM24201 ZHANG Haoyu\par
+System Management, Master's Program, Graduate School of Engineering
+\end{center}
+\vspace{0.8em}
+\begin{abstractblock}
+The interbank market is an important venue for short-term funding and liquidity adjustment among financial institutions. However, the creditor-debtor relationships formed between banks may also become channels for systemic risk transmission. Previous studies often focus on static network structures or a single clearing mechanism, while the dynamic formation of interbank lending relationships during market transactions has received less attention. This thesis develops a dynamic interbank network simulation framework to examine how different matching mechanisms affect the propagation of systemic risk.
+
+The model integrates bank balance sheets, liquidity constraints, capital adequacy constraints, interbank loan matching, and debt clearing based on the \mbox{Eisenberg--Noe} framework. In each simulation period, banks are classified as lenders, borrowers, or non-participants, and transactions between lenders and borrowers are formed through either a centralized allocation mechanism or a decentralized request-for-quote (RFQ) mechanism. Systemic risk is evaluated by a composite indicator combining the bank failure rate, the proportion of banks breaching the capital adequacy requirement, and the capital gap ratio. The simulations produce broadly similar systemic-risk paths under the two mechanisms. Centralized matching creates more coordinated lending connections, whereas RFQ produces more localized relationships and greater exposure to unmet funding demand. Under the baseline setting, the RFQ systemic-risk path becomes slightly higher in the middle and later stages, but the difference remains limited. Varying the CAR threshold has only a limited effect on the composite systemic-risk path under the current calibration.
+\end{abstractblock}
+\vspace{0.8em}
+\noindent\textbf{Keywords:} systemic risk, interbank network, dynamic simulation, decentralized request-for-quote, \mbox{Eisenberg--Noe} clearing
+\vfill
+\begin{flushright}September 16, 2026\end{flushright}
+
+\clearpage
+% Compile the complete thesis at least twice after final edits to refresh page numbers.
+\begingroup
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\setlength{\emergencystretch}{3em}
+\tableofcontents
+\endgroup
+\clearpage

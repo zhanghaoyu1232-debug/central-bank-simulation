@@ -1,0 +1,442 @@
+\chapter{Clearing Mechanism and Systemic Risk Measurement}
+
+\section{Eisenberg--Noe Clearing Model}
+
+Clearing is applied to payments that are contractually due on the
+current business day, not to the full stock of outstanding interbank
+claims. A loan with a later payment date remains part of the
+outstanding-exposure matrix but contributes nothing to the current
+clearing-liability matrix. This distinction allows contracts to persist
+across periods without causing future principal, interest, or coupon
+payments to be settled prematurely.
+
+Suppose the banking system contains \(n\) banks. Let \(E_{ij,t}\) denote
+the outstanding principal held by lender \(i\) against borrower \(j\) at
+the relevant point in period \(t\). The matrix \(E_{t}\) follows a
+creditor-to-debtor orientation: the first index identifies the lender
+and the second identifies the borrower.
+
+For current settlement, let \(\ A_{ij,t}^{due}\) denote the payment
+scheduled from borrower \(j\) to lender \(i\). Although
+\(A_{ij,t}^{due}\) follows the same orientation as the exposure matrix,
+Eisenberg--Noe clearing requires liabilities to be written from debtor
+to creditor. The due-payment liability matrix is therefore defined as:
+
+\(L_{ij}^{(t)} = A_{ji,t}^{due}\).
+
+Here, \(L_{ij}^{(t)}\) is the amount owed by debtor \(i\) to creditor
+\(j\) in period \(t\). The matrix records gross contractual obligations. Reciprocal obligations
+between two banks are retained as separate non-negative entries and are
+not bilaterally netted before clearing. For example, if bank $i$ owes
+bank $j$ while bank $j$ simultaneously owes bank $i$, both obligations
+remain in $\mathbf{L}^{(t)}$ and enter the clearing calculation separately. Bank \(i\)'s total nominal payment obligation is:
+
+\({\overline{p}}_{i,t} = \sum_{j = 1}^{n}L_{ij}^{(t)}\).
+
+A bank with \({\overline{p}}_{i,t} = 0\) has no obligation in the current
+clearing process, even if it has outstanding principal associated with
+later payment dates.
+
+The relative-liability share is defined as:
+
+
+\begin{equation}
+\Pi_{ij,t}=\begin{cases}\dfrac{L_{ij}^{(t)}}{\bar p_{i,t}},&\text{if }\bar p_{i,t}>0,\\[6pt]0,&\text{if }\bar p_{i,t}=0.\end{cases}\label{eq:relative-liability}.
+\end{equation}
+
+
+Each nonzero row of \(\Pi_{t}\) sums to one. The element
+\(\Pi_{ij,t}\) represents the proportion of debtor \(i\)'s total current
+payment allocated to creditor \(j\). This debtor-to-creditor orientation
+differs from the lender-to-borrower orientation used for new loans and
+outstanding claims in Chapter~4.
+
+Let \(e_{i,t}\) denote the external resources available to bank
+\(i\) immediately before clearing. In the baseline setting, these
+resources consist of liquid assets:
+
+\(e_{i,t} = {LA}_{i,t}^{-}\).
+
+The implementation contains an optional \texttt{use\_core} setting under which
+core capital can also be included in available resources. The baseline
+equations in this chapter correspond to \texttt{use\_core=False}; any experiment
+using the alternative setting should be reported separately.
+
+Bank \(i\)'s actual payment depends on its initial liquid resources and
+the payments received from other debtors. The Eisenberg--Noe clearing
+condition is:
+
+\(p_{i,t} = \min\left\{ {\overline{p}}_{i,t},e_{i,t} + \sum_{j = 1}^{n}\Pi_{ji,t}p_{j,t} \right\}\).
+
+The incoming-payment term uses \(\Pi_{ji,t}\) because bank \(i\) is the
+creditor receiving part of debtor \(j\)'s actual payment. In vector
+form:
+
+\(\mathbf{p}_{t} = \min\left\{ {\overline{\mathbf{p}}}_{t},\mathbf{e}_{t} + \Pi_{t}^{\mathsf{T}}\mathbf{p}_{t} \right\}\).
+
+The minimum is applied component wise. No bank can pay more than its
+nominal obligation, and no bank can distribute more than the resources
+available from its own liquidity and incoming payments.
+
+The clearing vector is obtained through fixed-point iteration. The
+calculation begins from full nominal payment:
+
+\(\mathbf{p}_{t}^{(0)} = {\overline{\mathbf{p}}}_{t}\).
+
+It is then updated according to:
+
+\(\mathbf{p}_{t}^{(k + 1)} = \min\left\{ {\overline{\mathbf{p}}}_{t},\mathbf{e}_{t} + \Pi_{t}^{\mathsf{T}}\mathbf{p}_{t}^{(k)} \right\}\).
+
+Iteration stops when:
+
+\(\left\| \mathbf{p}_{t}^{(k + 1)} - \mathbf{p}_{t}^{(k)} \right\|_{\infty} < \varepsilon_{EN}\).
+
+The implementation uses a convergence tolerance of \(10^{- 6}\) and
+allows at most 100 iterations.
+
+Once the payment vector has converged, the bilateral payment from debtor
+\(i\) to creditor \(j\) is:
+
+
+\begin{equation}
+P_{ij,t}=\Pi_{ij,t}p_{i,t}\label{eq:bilateral-payment}.
+\end{equation}
+
+
+The amount received by bank \(i\) is:
+
+
+\begin{equation}
+\mathrm{Recv}_{i,t}=\sum_{j=1}^{n}\Pi_{ji,t}p_{j,t}=\left(\boldsymbol\Pi_t^{\mathsf T}\mathbf p_t\right)_i\label{eq:received-payment}.
+\end{equation}
+
+
+A payment shortfall occurs when the actual payment is below the nominal
+amount due:
+
+
+\begin{equation}
+p_{i,t}<\bar p_{i,t}-\varepsilon_{\mathrm{def}}\label{eq:clearing-default}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(\varepsilon_{\mathrm{def}} = 10^{-6}\) is the numerical tolerance used to
+prevent rounding errors from being classified as clearing defaults. This
+condition identifies a clearing default. The distinction between
+clearing default, negative equity, capital stress, and the activity
+variable \(a_{i,t}\) is specified in Section~5.2.
+
+Under the baseline resource setting, liquid assets after clearing are
+updated as:
+
+
+\begin{equation}
+\mathrm{LA}_{i,t}^{+}=\max\left\{0,\,\mathrm{LA}_{i,t}^{-}-p_{i,t}+\mathrm{Recv}_{i,t}\right\}\label{eq:liquidity-update}.
+\end{equation}
+
+
+Outgoing payments reduce liquidity, while actual receipts increase it.
+Creditors are therefore updated using the cash they receive through
+clearing rather than the larger contractual amount originally promised.
+
+The clearing result is then applied to the contract book. A fully paid
+single-payment contract is removed after its maturity obligation has been processed.
+Installment and rollover contracts retain only their updated remaining
+principal and future payment schedule. The payment handled in period
+\(t\) is not submitted again in a later clearing cycle.
+
+New loans are formed only after this settlement stage. They enter the
+end-of-period outstanding-exposure matrix and create payment obligations
+for future dates, but they do not enter the clearing-liability matrix
+for the day on which they are originated. Clearing therefore connects
+the network created by earlier matching decisions with actual payment
+losses while preserving the timing of each contract.
+
+\section{Failure Definition}
+
+In systemic risk analysis, the definition of bank failure directly
+affects the calculation of the failure rate, the capital-stress share,
+and the composite systemic risk indicator. If the failure definition is
+too loose, the analysis may underestimate systemic risk. If the
+definition is too strict, banks that have not actually defaulted but are
+already under capital stress may be directly classified as failed banks,
+which may overestimate the degree of default contagion. The model
+distinguishes bank failure, liquidity default, and capital stress.
+
+The simulation distinguishes an active bank, a capital-stressed bank,
+and a failed bank because these states answer different questions. An
+active bank may trade normally. A bank with \(\mathrm{CAR}_{i,t}<\theta\)
+remains active but contributes to the capital-breach and capital-gap
+measures. Hard failure occurs after negative accounting equity or, when
+rollover is disabled, an unpaid single-payment obligation. Under
+rollover ON, an unpaid installment becomes arrears and does not
+deactivate the borrower solely because a payment was missed.
+
+\subsection{Pre-clearing Liquidity Shortage}
+
+Liquidity shortage is an important source of payment stress. In interbank
+debt clearing, if a bank's currently available liquidity is insufficient
+to cover its due payment obligations, the bank may experience a payment
+shortfall. Let the available resources of bank \(i\) before clearing in
+period \(t\) be \(e_{i,t}\), and its nominal payment obligation be
+\({\overline{p}}_{i,t}\). If:
+
+
+\begin{equation}
+e_{i,t}<\bar p_{i,t}.
+\end{equation}
+
+
+then bank \(i\) has a liquidity shortage. In the code,
+\nolinkurl{liquidity_default_candidates()} compares banks' liquid assets with
+their nominal payment obligations to identify potential
+liquidity-shortage banks before clearing. When \texttt{use\_core=False},
+available resources mainly consist of liquid assets. When
+\texttt{use\_core=True}, available resources may include both core capital and
+liquid assets. In the baseline model, liquid assets are used as the payment resource for clearing.
+
+A liquidity shortage does not, by itself, imply final failure. During
+the Eisenberg--Noe clearing process, a bank may also receive payments
+from other banks. Even if a bank has a shortage before clearing, it may
+still complete part or all of its repayment after receiving sufficient
+payments. The model therefore treats pre-clearing liquidity shortage as
+a diagnostic state. Its consequences depend on the common clearing
+outcome and the active rollover configuration.
+
+\subsection{Clearing Default}
+
+According to the Eisenberg--Noe clearing mechanism, the actual payment
+of bank \(i\) is \(p_{i,t}\), and its
+nominal payment obligation is \({\overline{p}}_{i,t}\). If the actual
+payment is lower than the nominal obligation, the bank cannot fully meet
+its interbank payment obligation:
+
+
+\begin{equation}
+p_{i,t}<\bar p_{i,t}.
+\end{equation}
+
+
+In the code implementation, if the following condition is satisfied:
+
+
+\begin{equation}
+p_{i,t}<\bar p_{i,t}-\varepsilon_{\mathrm{def}}.
+\end{equation}
+
+
+the bank has a clearing shortfall. The implementation allocates the
+debtor's Eisenberg--Noe payment pro rata across all contracts due that
+day. If rollover is OFF, any residual on a matured one-period contract
+beyond the numerical tolerance is a hard payment default. If rollover is
+ON, the residual becomes \(Q_{c,t+1}^{\mathrm{arrears}}\); consecutive
+misses are recorded but do not independently deactivate the bank.
+Creditors receive only actual clearing payments in either case.
+
+\subsection{Insolvency and Negative Equity}
+
+In addition to clearing default, a bank may also be regarded as failed
+when its equity becomes negative. Negative equity represents a
+balance-sheet insolvency state in which the bank's assets are
+insufficient to cover its liabilities. Let the total assets of bank
+\(i\) be \(TA_{i,t}\), and let its total liabilities, including current
+liabilities and interbank liabilities, be \(TL_{i,t}\). Let \(E_{i,t}\) denote bank equity. It can be expressed as:
+
+
+\begin{equation}
+E_{i,t}=\mathrm{TA}_{i,t}-\mathrm{TL}_{i,t}.
+\end{equation}
+
+
+If:
+
+
+\begin{equation}
+E_{i,t}<0.
+\end{equation}
+
+
+then bank \(i\) is considered to have lost its solvency basis and can no
+longer continue as a normal bank in subsequent market activities. In the
+dynamic simulation process, clearing losses, investment losses, declines
+in liquid assets, and increases in interbank liabilities may all worsen
+bank equity. Once bank equity falls below zero, the simulation marks the
+bank as inactive. The insolvency test is applied to the untruncated accounting equity
+$E_{i,t}$ rather than to the stored regulatory core-capital variable.
+After accounting equity has been calculated, core capital may be stored
+as $\max(0,E_{i,t})$ for regulatory-ratio calculations. This non-negative
+storage convention does not affect the failure test, because accounting
+equity is recalculated directly from assets and liabilities when
+insolvency is evaluated.
+
+The model treats negative equity as a hard balance-sheet failure under
+both rollover configurations. When a bank fails, creditor claims are
+written down using the recovery rule, balance sheets and regulatory
+ratios are refreshed, and newly insolvent creditors are resolved in the
+same business day. This fixed-point procedure is applied after
+Eisenberg--Noe settlement and again after project outcomes, so a
+write-off-induced secondary failure is not postponed to the next day.
+
+\subsection{Capital Stress}
+
+A capital adequacy ratio below the threshold is not directly equivalent
+to bank failure. In this model, the capital adequacy ratio is used to
+identify whether a bank is under capital stress, rather than to directly
+determine whether the bank has failed. Let the capital adequacy ratio of
+bank \(i\) in period \(t\) be \(CAR_{i,t}\), and let the capital
+adequacy threshold be \(\theta\). If:
+
+
+\begin{equation}
+\mathrm{CAR}_{i,t}<\theta.
+\end{equation}
+
+
+then bank \(i\) is regarded as a capital-stressed bank.
+
+In the baseline setting, \(\theta = 0.08\). A
+capital-stressed bank may still remain active and continue to
+participate in the interbank market. However, its capital buffer is
+already insufficient, so it is more likely to become a failed bank when
+facing subsequent losses. The systemic-risk function uses inactivity to
+calculate \(\mathrm{FR}_t\). CBS is calculated only among active
+non-central banks. A bank that was below the CAR threshold in the
+preceding period remains in CBS during a narrow recovery band until its
+CAR reaches \(\theta+0.0005\).
+
+This distinction helps describe the evolution of systemic risk in more
+detail. If failure is defined only as \texttt{is\_active=False}, the recorded
+results can capture only bank failures that have already occurred. If
+the capital-stress share is also observed, the analysis can capture the
+vulnerable part of the banking system that has not yet defaulted.
+Capital stress is an early signal of systemic risk, rather than a final
+failure state.
+
+\subsection{Failure Definition in This Thesis}
+
+Let \(F_{i,t}\) denote the absorbing failure indicator of non-central bank
+\(i\), and let \(R\in\{0,1\}\) denote the rollover switch. Apart from the
+small initialization failure draw reported in the experimental design,
+the operative transition is:
+
+
+\begin{equation}
+F_{i,t}=\mathbf{1}\left\{
+F_{i,t-1}=1
+\ \text{or}\ E_{i,t}<0
+\ \text{or}\ \bigl[R=0\ \text{and}\ U_{i,t}>\varepsilon_{\mathrm{def}}\bigr]
+\right\},
+\label{eq:failure-indicator}
+\end{equation}
+
+where \(U_{i,t}\) is the unpaid residual of the bank's due
+single-payment contracts after clearing. When \(R=1\), unpaid installment
+amounts are carried as arrears and are excluded from the third condition.
+
+When \(F_{i,t} = 1\), the bank's activity status is set to zero:
+
+
+\begin{equation}
+a_{i,t}=0.
+\end{equation}
+
+
+The bank is then excluded from ordinary interbank matching in subsequent
+periods. Obligations already recorded in the contract book remain
+subject to the applicable settlement rules.
+
+Capital stress for an active bank is defined separately. Let
+\(H_{i,t}\) denote the recovery-hysteresis capital-stress indicator:
+
+
+\begin{equation}
+H_{i,t}=\mathbf{1}\{a_{i,t}=1\}
+\begin{cases}
+1, & \mathrm{CAR}_{i,t}<\theta,\\
+1, & \mathrm{CAR}_{i,t-1}<\theta\ \text{and}\quad
+     \mathrm{CAR}_{i,t}<\theta+0.0005,\\
+0, & \text{otherwise}.
+\end{cases}
+\label{eq:capital-stress-indicator}
+\end{equation}
+
+
+A CAR breach therefore identifies an active but undercapitalized bank;
+it does not by itself cause the bank to exit the market. This separation
+allows \(\mathrm{FR}_t\) to measure realized failures, while \(\mathrm{CBS}_t\) and
+\(\mathrm{CGR}_t\) retain information about capital weakness before failure.
+
+\subsection{Economic Interpretation}
+
+These conditions represent different stages of financial deterioration.
+A pre-clearing liquidity shortage indicates immediate funding pressure;
+a clearing shortfall is the realized unpaid amount after network receipts
+have been considered; arrears preserve that amount under rollover ON;
+negative equity captures balance-sheet insolvency; and a CAR breach
+identifies an undercapitalized active bank. Keeping these states separate
+shows whether rollover delays a liquidity failure and whether losses
+ultimately create insolvency.
+
+\section{Systemic Risk Index}
+
+The systemic risk indicators are calculated at the end of each business
+day, after scheduled obligations have been cleared, bank states have
+been updated, new contracts have been registered, and the
+outstanding-exposure matrix has been rebuilt. Their mathematical
+definitions are given in Section~3.4.5. This section explains how the
+indicators are connected to the clearing outcomes described above and
+how they are used in the experimental comparison.
+
+The composite systemic risk index is:
+
+
+\begin{equation}
+\mathrm{SR}_t=w_1\mathrm{FR}_t+w_2\mathrm{CBS}_t+w_3\mathrm{CGR}_t.
+\end{equation}
+
+
+The baseline weights are:
+
+
+\begin{equation}
+\left(w_1,w_2,w_3\right)=\left(0.5,0.3,0.2\right).
+\end{equation}
+
+
+The failure rate \(\mathrm{FR}_t\) records the proportion of non-central banks
+whose activity status is zero. Under the failure rule in Section~5.2, a
+non-central bank becomes inactive after negative equity or an OFF-regime
+hard payment default. This component therefore represents failures that
+have already materialized under the adopted classification rule.
+
+The capital-breach share \(\mathrm{CBS}_t\) measures the share of active
+non-central banks in the recovery-hysteresis low-CAR state. Failed banks
+are excluded from its numerator and denominator because realized failure
+is recorded by \(\mathrm{FR}_t\). The capital-gap ratio
+\(\mathrm{CGR}_t\) divides aggregate capital shortfall by aggregate required
+capital. For a failed bank, actual capital is set to zero and required
+capital is frozen at its value at failure. Two simulations may therefore
+produce similar CBS values while differing substantially in the depth of
+the underlying capital deficiencies.
+
+The three components should be examined together. An increase in
+\(\mathrm{FR}_t\) indicates a rise in realized failures, whereas an increase
+in \({\ CBS}_{t}\) may reveal broader vulnerability before additional
+banks become inactive. Changes in \({\ CGR}_{t}\) show whether capital
+shortfalls are becoming more severe, even when the number of stressed
+banks changes only slightly. The composite index summarizes these
+movements but does not replace the individual series.
+
+The weights are predetermined evaluation parameters rather than values
+estimated from the simulation. A larger weight on \({FR}_{t\ }\) makes
+the index more responsive to realized failures, while larger weights on
+\(\mathrm{CBS}_t\) or \(\mathrm{CGR}_t\) place greater emphasis on capital fragility
+before or alongside default. The sensitivity analysis therefore varies
+both the component weights and the CAR threshold to determine whether
+the comparison between centralized matching and RFQ depends on a
+particular measurement choice.
+
+In the experimental results, \(\mathrm{SR}_t\) is reported together with
+\(\mathrm{FR}_t\), \(\mathrm{CBS}_t\), and \(\mathrm{CGR}_t\). Differences between the
+two matching mechanisms can then be traced to realized failures, the
+breadth of capital stress, or the severity of capital shortages rather
+than being inferred from the composite path alone.

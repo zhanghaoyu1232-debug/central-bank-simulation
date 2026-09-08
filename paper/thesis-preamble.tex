@@ -1,0 +1,94 @@
+% Thesis layout and notation settings.
+\usepackage[a4paper,top=2.54cm,bottom=2.54cm,left=3.175cm,right=3.175cm,headheight=15pt]{geometry}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\IfFontExistsTF{Tinos}{
+  \setmainfont{Tinos}
+}{
+  \IfFontExistsTF{TeX Gyre Termes}{\setmainfont{TeX Gyre Termes}}{\setmainfont{DejaVu Serif}}
+}
+\IfFontExistsTF{DejaVu Sans}{\setsansfont{DejaVu Sans}}{\setsansfont{TeX Gyre Heros}}
+\IfFontExistsTF{DejaVu Sans Mono}{\setmonofont{DejaVu Sans Mono}}{\setmonofont{TeX Gyre Cursor}}
+% Cross-platform Japanese fonts: Windows first, then TeX/Linux fallbacks.
+\IfFontExistsTF{Yu Mincho}{
+  \setCJKmainfont{Yu Mincho}
+}{
+  \IfFontExistsTF{MS Mincho}{
+    \setCJKmainfont{MS Mincho}
+  }{
+    \IfFontExistsTF{Noto Serif CJK JP}{
+      \setCJKmainfont{Noto Serif CJK JP}
+    }{
+      \IfFontExistsTF{HaranoAjiMincho}{
+        \setCJKmainfont{HaranoAjiMincho}
+      }{
+        \IfFontExistsTF{IPAexMincho}{\setCJKmainfont{IPAexMincho}}{\setCJKmainfont{DejaVu Serif}}
+      }
+    }
+  }
+}
+\IfFontExistsTF{Yu Gothic}{
+  \setCJKsansfont{Yu Gothic}
+}{
+  \IfFontExistsTF{MS Gothic}{
+    \setCJKsansfont{MS Gothic}
+  }{
+    \IfFontExistsTF{Noto Sans CJK JP}{
+      \setCJKsansfont{Noto Sans CJK JP}
+    }{
+      \IfFontExistsTF{HaranoAjiGothic}{
+        \setCJKsansfont{HaranoAjiGothic}
+      }{
+        \IfFontExistsTF{IPAexGothic}{\setCJKsansfont{IPAexGothic}}{\setCJKsansfont{DejaVu Sans}}
+      }
+    }
+  }
+}
+\usepackage{microtype}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{3em}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs,array,tabularx,longtable}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{fancyhdr}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{}
+\usepackage[hidelinks,bookmarks=false,hypertexnames=false]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\numberwithin{equation}{chapter}
+\captionsetup{font=small,labelfont=bf,labelsep=space,justification=centering}
+\renewcommand{\thetable}{\thechapter.\arabic{table}}
+\renewcommand{\thefigure}{\thechapter.\arabic{figure}}
+\renewcommand{\contentsname}{Contents}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+
+% Compact chapter headings matching the Word layout: “1. Introduction”, not “Chapter 1”.
+\titleformat{\chapter}[hang]{\normalfont\bfseries\Large}{\thechapter.}{0.6em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{1.2em}
+\titleformat{\section}[hang]{\normalfont\bfseries\large}{\thesection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.2em}{0.55em}
+\titleformat{\subsection}[hang]{\normalfont\bfseries\normalsize}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{1em}{0.45em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+\newenvironment{japaneseabstract}{\begingroup\setstretch{1.35}\setlength{\parindent}{1em}\small}{\par\endgroup}
+\newenvironment{abstractblock}{\begingroup\setstretch{1.25}\setlength{\parindent}{1.5em}\small}{\par\endgroup}
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\mat}[1]{\boldsymbol{#1}}

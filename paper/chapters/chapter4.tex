@@ -1,0 +1,542 @@
+\chapter{Interbank Matching Mechanisms}
+
+The position of the matching stage within the daily simulation process
+is described in Section~3.1. This chapter focuses only on how eligible
+lenders and borrowers are connected, how transaction amounts and rates
+are determined, and how the resulting trades differ between centralized
+matching and decentralized RFQ. Clearing, market updates, bank-state
+transitions, and systemic-risk recording are not repeated here.
+
+\section{Centralized Matching Mechanism}
+
+Centralized matching is treated as a high-coordination benchmark. Bank
+roles and trading intentions are updated on each business day and the
+current orders enter a market-wide allocation routine on that same day.
+The baseline cycle length is therefore one business day. A longer cycle
+can be imposed as a structural robustness exercise, but it is not used in
+the principal Centralized--RFQ comparison.
+
+In each period, eligible lending supply and borrowing demand are
+considered jointly across the market. The mechanism determines feasible
+lender--borrower pairs and allocates funds subject to interest-rate
+compatibility, lender capacity, borrower demand, the single-loan cap,
+and network-degree restrictions.
+
+Let \(\mathcal{L}_{t}\) denote the set of active lenders and let
+\(\mathcal{B}_{t}\) denote the set of active borrowers in period \(t\).
+The available supply of lender \(i\) is denoted
+by \(S_{i}^{(t)}\), while the funding demand of borrower \(j\) is denoted
+by \(D_{j}^{(t)}\). These quantities are recalculated from the current
+bank states before daily allocation.
+
+Throughout Chapter~4, \(x_{ij}^{(t)}\) denotes a new loan from lender
+\(i\) to borrower \(j\) in period \(t\). The first index therefore
+identifies the lender, while the second identifies the borrower. This
+orientation differs from the due-payment liability matrix in Section~5.1,
+where the first index identifies the debtor.
+
+A lender--borrower pair is eligible only when \(i \in \mathcal{L}_{t}\),
+\(j \in \mathcal{B}_{t}\), \(i \neq j\), both banks remain active, and
+the applicable degree and rate constraints are satisfied. Rollover
+status does not remove a bank from ordinary matching in the current
+implementation.
+
+Let \(r_{i,\min}^{(t)}\) denote the minimum lending rate accepted by
+lender \(i\), and let \(r_{j,\max}^{(t)}\) denote the maximum borrowing
+rate accepted by borrower \(j\). The interest-rate surplus of a
+lender--borrower pair is defined as:
+
+\begin{equation}
+\Delta r_{ij}^{(t)}=r_{j,\max}^{(t)}-r_{i,\min}^{(t)}\label{eq:rate-surplus}.
+\end{equation}
+
+A positive interest-rate surplus indicates that the pair is compatible.
+Feasible lender--borrower pairs are ranked according to the matching
+rule used in the centralized allocation routine. When an additional
+compatibility score is enabled, it is combined with the interest-rate
+surplus; otherwise, candidate lenders are ranked deterministically
+according to the applicable lending-rate rule.
+
+The centralized allocation is governed by the following feasibility and
+funding conditions:
+
+\begin{equation}
+\begin{aligned}
+r_{i,\min}^{(t)}&\leq r_{j,\max}^{(t)},&&i\in\mathcal L_t,\ j\in\mathcal B_t,\ i\neq j,\\
+0\leq x_{ij}^{(t)}&\leq\min\left\{S_{i,\mathrm{rem}}^{(t)},D_{j,\mathrm{rem}}^{(t)},\bar x\right\},&&i\in\mathcal L_t,\ j\in\mathcal B_t,\\
+\sum_{j\in\mathcal B_t}x_{ij}^{(t)}&\leq S_i^{(t)},&&i\in\mathcal L_t,\\
+\sum_{i\in\mathcal L_t}x_{ij}^{(t)}&=z_j^{(t)}D_j^{(t)},&&j\in\mathcal B_t,\\
+z_j^{(t)}&\in\{0,1\},&&j\in\mathcal B_t.
+\end{aligned}\label{eq:centralized-conditions}
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent Here, \(\bar x\) denotes the upper limit on a single loan, while
+\(z_{j}^{(t)}\) indicates whether borrower \(j\) is fully funded. When
+\(z_{j}^{(t)} = 1\), the borrower's complete demand is covered and the
+tentative transactions are committed. When \(z_{j}^{(t)} = 0\), complete
+funding cannot be assembled, the tentative allocations are cancelled,
+and the borrower receives no new centralized loan in that period.
+
+The implementation applies this condition through a ranking-and-rollback
+procedure rather than by solving a separate mathematical programming
+problem. Feasible pairs are ranked, and lender supply is tentatively
+allocated subject to the single-loan and degree limits. The allocation
+is committed only when the borrower's full demand can be covered;
+otherwise, the tentative transactions are rolled back and the lenders'
+available supplies are restored.
+
+Committed trades are processed through the same balance-sheet,
+contract-accounting, and clearing modules used for RFQ trades. However,
+the two mechanisms should not be interpreted as differing only in
+counterparty access. Both operate daily, but centralized matching combines
+market-wide visibility and an all-or-nothing borrower rule, whereas RFQ
+combines local discovery, bilateral quotation, risk screening, and retained
+partial funding.
+
+\section{Decentralized RFQ Matching Mechanism}
+
+Decentralized request-for-quote matching is executed on each business
+day after active banks have been assigned lender, borrower, or
+non-participant roles. This section focuses on the
+bilateral enquiry, quotation, and transaction-acceptance procedures used
+during the daily matching stage.
+
+Unlike centralized matching, RFQ does not provide borrowers with access
+to a market-wide allocation process. Each borrower contacts only a
+limited set of candidate lenders and requests bilateral quotations.
+Lenders determine whether to quote and on what terms according to their
+remaining loanable funds, minimum acceptable lending rates, and the
+financial condition of the borrower. A borrower may conduct several
+enquiry rounds when its funding demand is not fully satisfied in the
+first round.
+
+The RFQ mechanism begins with the formation of trading intentions. In
+the implementation, each intention records the bank identifier, market
+role, relevant reservation rate, and intended transaction quantity. A
+lender specifies its minimum acceptable lending rate and available
+supply, whereas a borrower specifies its maximum acceptable borrowing
+rate and desired funding amount. The central bank, inactive banks, and
+banks assigned as non-participants are excluded from ordinary RFQ
+matching.
+
+For lender \(i\), loanable supply is determined by the amount of liquid
+assets remaining above its target liquidity buffer. Let
+\(LA_{i}^{(t)}\) denote the liquid assets of lender \(i\) in period
+\(t\), and let \(LB_{i}^{(t)}\) denote its target liquidity buffer. The
+available lending supply is defined as:
+
+
+\begin{equation}
+S_i^{(t)}=\max\left\{0,\,\mathrm{LA}_i^{(t)}-\mathrm{LB}_i^{(t)}\right\}\label{eq:rfq-supply}.
+\end{equation}
+
+
+The target liquidity buffer reflects the bank's current liabilities,
+expected funding outflows, reserve requirements, and liquidity target.
+This constraint prevents a lender from supplying funds that are needed
+to maintain its own liquidity position.
+
+Borrowing demand may arise from either a liquidity shortage or an
+investment opportunity. For borrower \(j\), the liquidity-gap component
+is defined as:
+
+
+\begin{equation}
+D_{j,\mathrm{gap}}^{(t)}=\max\left\{0,\,\mathrm{LB}_j^{(t)}-\mathrm{LA}_j^{(t)}\right\}\label{eq:rfq-gap-demand}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent Here, \(LA_{j}^{(t)}\) denotes the borrower's liquid assets, while
+\(LB_{j}^{(t)}\) denotes its target liquidity buffer. A positive value
+indicates that the borrower's available liquidity is below the target
+level.
+
+The borrower may also demand additional funds when expected project
+returns justify expansion. Total borrowing demand is therefore defined
+as:
+
+
+\begin{equation}
+D_j^{(t)}=D_{j,\mathrm{gap}}^{(t)}+D_{j,\mathrm{opp}}^{(t)}\label{eq:rfq-total-demand}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(D_{j,opp}^{(t)}\) represents opportunity-driven demand. This
+component depends on the expected project return, the cost of interbank
+borrowing, the borrower's risk appetite, and the current market
+environment. Consequently, a bank may enter the RFQ market either
+because it faces a liquidity shortage or because it identifies a
+profitable investment opportunity.
+
+The RFQ market operates through a limited number of bilateral enquiry
+rounds. At initialization, commercial banks are placed on a randomly
+permuted ring and each bank is acquainted with its two nearest neighbors
+on either side. These information links permit enquiries but do not create
+loans or balance-sheet exposures. In each period a borrower constructs one
+local lender pool in the following order: lenders on outstanding contracts,
+historical counterparties, initial acquaintances and current one-hop
+exposure neighbors, two-hop referrals, and at most one randomly explored
+lender. Outstanding lenders do not consume the new-discovery budget; at
+most eight other lenders may enter the pool.
+
+The borrower may conduct up to four RFQ rounds and contact at most four
+lenders from the same local pool in each round. A degree cap of 12 limits
+new connections. A lender that can supply only part of the requested amount
+remains eligible in later rounds; permanent exhaustion is recorded only
+after a hard rate or screening rejection, zero bilateral room, exhausted
+loanable cash, or lender failure. These rules improve execution within the
+local information set without giving RFQ a market-wide view.
+
+Each locally feasible pair is evaluated with the version-6 GNN matcher and
+a teacher-aligned risk score. Ranking gives priority to low borrower
+origination risk and penalizes post-trade bilateral exposure, while GNN
+compatibility, relationship information, and the rate margin act as
+secondary terms. The GNN therefore changes selection within the local pool;
+it does not expand that pool.
+
+Each contacted lender determines whether to submit a quotation. For
+lender \(i\) and borrower \(j\), the quoted interest rate is defined as:
+
+
+\begin{equation}
+q_{ij}^{(t)}=r_{i,\min}^{(t)}+\mu_{ij}^{(t)}\label{eq:rfq-quote}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(r_{i,\min}^{(t)}\) denotes lender \(i\)'s minimum acceptable
+lending rate, and \(\mu_{ij}^{(t)}\) denotes the borrower-specific risk
+markup. The markup reflects the lender's assessment of the borrower's
+capital, liquidity, solvency, and general financial condition. A
+financially weaker borrower may therefore receive a higher quoted rate.
+
+A quotation is acceptable only when the quoted rate does not exceed the
+borrower's maximum acceptable borrowing rate:
+
+
+\begin{equation}
+q_{ij}^{(t)}\leq r_{j,\max}^{(t)}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(r_{j,\max}^{(t)}\) denotes the highest borrowing rate that
+borrower \(j\) is willing to accept. Quotations that exceed this limit
+are rejected.
+
+Among the acceptable quotations, the borrower gives priority to offers
+with favorable risk-adjusted scores. The amount of an accepted
+transaction is constrained by the lender's remaining supply, the
+borrower's remaining demand, the borrower's balance-sheet borrowing room,
+and a bilateral gross-exposure limit. Let \(x_{ij}^{(t)}\) denote the
+amount lent by lender \(i\) to borrower \(j\). If
+\(E_{ij,t}^{\mathrm{gross}}\) is their existing gross exposure, the
+pair-specific room is
+
+\begin{equation}
+\bar x_{ij,t}^{\mathrm{pair}}
+=\min\left\{
+\max\{0,0.25C_{i,t}-E_{ij,t}^{\mathrm{gross}}\},
+0.5D_{j,t}^{\mathrm{initial}},\bar x
+\right\}.
+\label{eq:rfq-pair-cap}
+\end{equation}
+
+The transaction amount is then bounded by
+
+
+\begin{equation}
+x_{ij}^{(t)}=\min\left\{S_{i,\mathrm{rem}}^{(t)},D_{j,\mathrm{rem}}^{(t)},
+R_{j,t}^{\mathrm{borrow}},\bar x_{ij,t}^{\mathrm{pair}}\right\}
+\label{eq:rfq-amount}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(S_{i,rem}^{(t)}\) is lender \(i\)'s remaining supply,
+\(D_{j,rem}^{(t)}\) is borrower \(j\)'s remaining demand, and
+\(R_{j,t}^{\mathrm{borrow}}\) is its remaining balance-sheet borrowing room.
+The bilateral limit is applied to gross principal plus arrears and is not
+netted against claims in the opposite direction.
+
+A transaction is completed only when the calculated amount is no smaller
+than the minimum trade size \(m\):
+
+
+\begin{equation}
+x_{ij}^{(t)}\geq m.
+\end{equation}
+
+
+Under the baseline setting, \(m=10^{-9}\). This floor is retained in the
+code as a numerical filter against degenerate zero-size trades, but it is
+effectively inactive for economically relevant amounts and does not screen
+small network links in the reported experiments.
+
+After a transaction is accepted, the remaining supply of lender \(i\) is
+updated as:
+
+
+\begin{equation}
+S_{i,\mathrm{rem}}^{(t)}\leftarrow S_{i,\mathrm{rem}}^{(t)}-x_{ij}^{(t)}.
+\end{equation}
+
+
+and the remaining demand of borrower \(j\) is updated as:
+
+
+\begin{equation}
+D_{j,\mathrm{rem}}^{(t)}\leftarrow D_{j,\mathrm{rem}}^{(t)}-x_{ij}^{(t)}.
+\end{equation}
+
+
+The borrower continues to compare acceptable quotations until its demand
+is satisfied, the available quotations are exhausted, or the maximum
+number of RFQ rounds is reached.
+
+Unlike the centralized mechanism, RFQ permits partial funding.
+Transactions that have already been accepted are retained even when the
+borrower's total demand cannot be fully covered. A borrower may
+therefore complete several bilateral loans while still having positive
+unmet demand at the end of the matching stage.
+
+Accepted trades are processed according to the common
+contract-accounting and timing rules described in Section~3.1. Each
+completed trade specifies the lender, borrower, principal amount,
+interest rate, origination date, and maturity conditions. The detailed
+settlement and clearing treatment of these contracts is presented in
+Chapters 4.4 and 5.
+
+The RFQ procedure records several indicators describing its immediate
+funding outcomes. Total transaction volume in period \(t\) is defined as:
+
+
+\begin{equation}
+V_t=\sum_i\sum_j x_{ij}^{(t)}\label{eq:trading-volume}.
+\end{equation}
+
+
+The funding satisfaction ratio is defined as:
+
+
+\begin{equation}
+\mathrm{FS}_t=\frac{V_t}{\max\left\{D_t,\varepsilon\right\}}\label{eq:funding-satisfaction}.
+\end{equation}
+\vspace{-0.4\baselineskip}
+\noindent where \(D_{t}\) denotes total borrowing demand in period \(t\), and
+\(\varepsilon\) is a small positive value used to avoid division by zero.
+
+Aggregate unmet demand is defined as:
+
+
+\begin{equation}
+\mathrm{UD}_t=\max\left\{0,\,D_t-V_t\right\}\label{eq:unmet-demand}.
+\end{equation}
+
+
+The volume-weighted average transaction rate is calculated as:
+
+
+\begin{equation}
+\bar q_t=\frac{\displaystyle\sum_i\sum_j q_{ij}^{(t)}x_{ij}^{(t)}}{\max\left\{\displaystyle\sum_i\sum_j x_{ij}^{(t)},\varepsilon\right\}}\label{eq:average-quote}.
+\end{equation}
+
+
+These indicators describe the direct outcome of the RFQ matching stage.
+They should be distinguished from clearing defaults, bank failures, and
+capital stress, which are evaluated when the corresponding contractual
+payments become due in later periods. Section~4.3 compares these
+characteristics with those of the centralized matching mechanism.
+
+\section{Comparison between Centralized and Decentralized Matching}
+
+Centralized matching and decentralized RFQ use the same bank population,
+balance-sheet rules, regulatory constraints, contract accounting, and
+due-payment clearing procedure. Their transaction-formation rules,
+however, differ along both a cross-sectional and a temporal dimension.
+Centralized matching executes a market-wide allocation every business day
+and applies an all-or-nothing funding rule at the borrower level. RFQ is
+also executed every business day,
+limits each borrower to local lender enquiries, and retains acceptable
+partial trades even when total demand is not fully covered.
+
+The main differences are summarized below.
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison of centralized matching and decentralized RFQ}
+\label{tab:matching-comparison}
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.20\textwidth}XX@{}}
+\toprule
+\textbf{Aspect} & \textbf{Centralized matching} & \textbf{Decentralized RFQ}\\
+\midrule
+Decision scope & Market-wide allocation among eligible banks & Local enquiry and bilateral selection\\
+Trading frequency & Market-wide allocation every business day & Matching and quotation every business day\\
+Counterparty access & All feasible lenders considered jointly & One local pool: at most eight newly discovered lenders plus outstanding lenders; at most four contacted per round\\
+Funding rule & All-or-nothing at the borrower level & Accepted partial funding may be retained\\
+Pricing & Reservation rates and coordinated ranking & Bilateral quotes and borrower-specific risk markups\\
+Unmet demand & Failure to assemble complete funding in the current period & Limited local capacity, bilateral caps, rejected quotes, or insufficient supply\\
+Network formation & Daily coordinated formation of market-wide exposures & Repeated local enquiries and accepted bilateral quotations\\
+Potential risk channel & Broad access may concentrate allocation in attractive counterparties & Local funding gaps, repeated counterparties, or residual bilateral concentration\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The centralized design can combine funds from several lenders to satisfy
+one borrower, but a borrower receives no funding when complete demand
+cannot be assembled. Counterparty access is broad, so its principal
+friction is the all-or-nothing completion rule rather than infrequent
+market access.
+
+RFQ produces a different funding pattern. A borrower can seek funding on
+each business day, but it observes only a limited subset of lenders in
+each enquiry round. Individually accepted trades are retained even when
+total demand remains partly unsatisfied. Daily access can therefore
+relieve some immediate funding pressure, while limited search and
+bilateral pricing can still leave positive unmet demand.
+
+These rules also influence network formation. Daily centralized allocation
+can direct large amounts toward a relatively small set of attractive
+counterparties. Daily RFQ can repeatedly create and renew bilateral
+relationships, so a decentralized network need not be sparser than the
+centralized one. The number of links, exposure concentration, repeated
+counterparties, and component size are therefore treated as empirical
+simulation outcomes rather than imposed properties of either mechanism.
+
+The implications for systemic risk are ambiguous before the simulations
+are run. Centralized coordination may improve funding completion through
+broad access, but the all-or-nothing rule and concentrated allocations can
+still shape subsequent exposures. RFQ allows partial funding, but limited
+counterparty search and repeated bilateral trading
+can alter exposure concentration and later payment losses.
+
+The comparison is evaluated using four groups of outcomes. Funding
+performance is measured through actual lending, funding satisfaction,
+and unmet demand. Network formation is examined through the number and
+distribution of links, exposure concentration, and repeated trading
+relationships. Settlement outcomes include actual payments, payment
+shortfalls, and clearing defaults. System-wide effects are assessed
+using \(\mathrm{FR}_t\), \(\mathrm{CBS}_t\), \(\mathrm{CGR}_t\), and the composite
+indicator \(\mathrm{SR}_t\). Because both mechanisms operate daily, the
+estimated difference primarily reflects information scope, allocation and
+pricing rules, GNN-assisted local screening, and retained partial funding;
+it is not a comparison driven by unequal transaction frequency.
+
+\section{Rollover and Coupon Mechanism}
+
+Interbank contracts persist through a dated contract book that records
+the lender, borrower, principal, remaining principal, settlement rate,
+creation step, maturity step, repayment type, coupon rate, total tenor,
+and the number of completed installment periods. The current rollover
+implementation selects the repayment schedule when the trade is
+originated. Hence the ON/OFF comparison changes contractual maturity
+from the beginning; it does not wait for a bullet loan to mature before
+deciding whether to roll its principal.
+
+When rollover is disabled, a new trade is a one-business-day
+single-payment contract. If \(P_c\) is principal and
+\(r_c^{\mathrm{settle}}\) is the transaction rate, the amount due in the
+next settlement cycle is
+
+\begin{equation}
+D_{c,t}=P_c\left(1+r_c^{\mathrm{settle}}\right).
+\label{eq:single-payment-due}
+\end{equation}
+
+Any residual beyond the clearing tolerance after the common
+Eisenberg--Noe settlement causes a hard payment default. The unpaid claim
+is retained for creditor recovery and write-off accounting rather than
+being silently deleted.
+
+When rollover is enabled, the entire notional is recorded immediately as
+an amortizing installment contract. Its tenor \(N_c\) lies between 5 and
+20 business days and increases with principal: amounts at or below 50
+simulation units receive five periods, amounts at or above 2000 receive
+20 periods, and intermediate amounts are linearly interpolated and
+rounded. No fixed rollover fraction is used.
+
+The coupon rate of the rolled contract is based on the original
+settlement rate plus a tenor-dependent rollover spread. Let
+\(P_{c,t}^{-}\) denote the remaining principal immediately before an
+installment payment in period \(t\), and let
+\(r_c^{\mathrm{coupon}}\) denote the coupon rate. The interest due in
+that period is
+
+\begin{equation}
+I_{c,t}
+=
+r_c^{\mathrm{coupon}}P_{c,t}^{-}.
+\label{eq:coupon_payment}
+\end{equation}
+
+Let \(k_{c,t}\) be the number of scheduled installments already processed. The
+number of remaining installment periods is
+
+\begin{equation}
+R_{c,t}=N_c-k_{c,t}.
+\label{eq:remaining_periods}
+\end{equation}
+
+The principal amount scheduled for the current installment is
+
+\begin{equation}
+A_{c,t}^{\mathrm{inst}}
+=
+\begin{cases}
+\displaystyle \frac{P_{c,t}^{-}}{R_{c,t}}, & R_{c,t}>1,\\[6pt]
+P_{c,t}^{-}, & R_{c,t}=1.
+\end{cases}
+\label{eq:installment_principal}
+\end{equation}
+
+Arrears from preceding periods are added to the current coupon and
+scheduled principal. Thus the amount submitted to clearing is
+
+\begin{equation}
+D_{c,t}=Q_{c,t}^{\mathrm{arrears}}+I_{c,t}+A_{c,t}^{\mathrm{inst}}.
+\label{eq:contract_due_payment}
+\end{equation}
+
+All contracts due on the same day enter one gross Eisenberg--Noe matrix;
+there is no contract-by-contract or interest-before-principal clearing
+order. After the settlement, remaining scheduled principal is updated as
+
+\begin{equation}
+P_{c,t}^{+}
+=
+\max\left\{0,\,P_{c,t}^{-}-A_{c,t}^{\mathrm{inst}}\right\},
+\label{eq:remaining_principal}
+\end{equation}
+
+and the installment counter becomes
+
+\begin{equation}
+k_{c,t}^{+}=k_{c,t}+1.
+\label{eq:period_update}
+\end{equation}
+
+If the payment is incomplete, the unpaid total becomes next-period
+arrears. The amortization clock still advances, and any principal included
+in the missed installment is preserved in arrears rather than erased.
+Consecutive misses are recorded as a delinquency statistic but do not by
+themselves cause hard default when rollover is enabled. After the planned
+tenor, any residual principal or arrears continues to be requested each
+business day until settled or resolved through bank default.
+
+A bank with an active installment remains eligible for ordinary
+interbank borrowing. The current rollover functions do not remove such a
+bank from the borrower set merely because installment debt or arrears are
+outstanding. Rollover therefore acts as a maturity and payment-pressure
+buffer rather than as an automatic borrowing prohibition.
+
+For both single-payment and installment contracts, only cash flows scheduled
+for the current business day enter Eisenberg--Noe clearing. If
+\(I_{c,t}\) denotes current interest and \(A_{c,t}\) denotes current
+principal due, future coupon payments and remaining principal are retained in the
+contract book and excluded from the current-period due-payment matrix.
+The due flows are aggregated into the gross debtor-to-creditor liability
+matrix described in Chapter~5, so reciprocal obligations are preserved
+separately rather than bilaterally netted before clearing.
+
+The purpose of the rollover mechanism is therefore narrow and explicit.
+It does not represent a complete refinancing market. It converts a
+new interbank loan from next-day single payment into a 5--20-period
+amortizing schedule and thereby spreads repayment pressure across future
+business days. This
+allows the simulations to test whether changing the timing of principal
+payments, especially in combination with policy support, delays or
+amplifies the realization of systemic stress.
