@@ -48,12 +48,24 @@ python scripts/verify_reproduction.py --artifacts-dir "你的figures目录"
 
 这里是针对本次疑点的轻量验证，不运行 Monte Carlo，也不代表完整模型的全量回归测试。它会核验源文件摘要、两个机制的原始递归方法、实际共享核销程序和 30 行初始化数据。
 
-`reproduction/simulation_source/` 是实际执行代码快照。已包含对应的 v6 训练检查点；核心源文件逐字节保持不变。完整原始输出继续使用此前的 `figures.zip`，本包通过 `reproduction/manifest.json` 记录每个结果文件的 SHA-256 和精确种子。
+`reproduction/simulation_source/` 是实际执行代码快照。已包含对应的 v6 训练检查点；核心源文件逐字节保持不变。完整原始输出位于 GitHub Release 中的 `figures.zip`，本包通过 `reproduction/manifest.json` 记录每个结果文件的 SHA-256 和精确种子。
 
-## GitHub 仍需同步
+## GitHub 版本
 
-2026-09-08 读到的远端 HEAD 为 `d8ffdc455d29fea032c71847915e4e373af38b7c`。仓库根目录的核心代码与本次正式源码不一致，并缺少多份共享模块；未发现以 thesis 开头的远端 tag。不能把这个旧提交写成当前实验的复现版本。
+正式源码、训练检查点和论文工程已推送到：
 
-应先把本包的 `reproduction/simulation_source/`、实际输入/原始输出和论文修订文件同步到你的 Git 项目，再提交并推送。提交后用 `git rev-parse HEAD` 取得真实提交号，补入第 6.1 节和附录 A。不要直接填原计划的 tag 名并声称已经发布。
+`https://github.com/zhanghaoyu1232-debug/central-bank-simulation`
 
-本轮没有向 GitHub 写入、创建远端 tag 或改动你电脑上的项目。
+2026-09-08 通过 `git ls-remote` 核对的 `master` 分支提交为
+`fe3445374adac3e90c2d29cbf90100d02b6ee135`。第 6.1 节和附录 A 已写入该
+真实提交号。核心源码指纹仍为 `11dda58061ded609`。
+
+原始输出归档 `figures.zip` 发布于标签 `thesis-2026-09-08` 对应的 Release：
+
+`https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08`
+
+该 annotated tag 已通过 `git ls-remote` 核对，指向上述源码提交。
+
+该提交中的 `paper/` 是写入提交号和 Release 链接之前的论文副本。当前包已补入两者；
+如需让 GitHub 上的论文也保持最新，将当前 `paper/` 覆盖仓库中的同名目录，
+再提交一次即可。论文引用的模拟源码版本仍是上述提交。

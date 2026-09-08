@@ -69,10 +69,24 @@ The repository address for this study is
 \begin{center}\small
 \url{https://github.com/zhanghaoyu1232-debug/central-bank-simulation}
 \end{center}
-The executable source snapshot supplied with the thesis has core-source
-fingerprint \texttt{11dda58061ded609}, matching the recorded formal artifacts.
-This fingerprint identifies the simulation source bytes; it is distinct
-from a Git commit identifier. The supplementary reproduction manifest
+The executable source version used for the reported results is published on
+the repository's \texttt{master} branch at Git commit
+\begin{center}\small
+\href{https://github.com/zhanghaoyu1232-debug/central-bank-simulation/commit/fe3445374adac3e90c2d29cbf90100d02b6ee135}{\nolinkurl{fe3445374adac3e90c2d29cbf90100d02b6ee135}}.
+\end{center}
+The repository and this commit were accessed and verified on September 8,
+2026.
+The versioned raw-output archive, \texttt{figures.zip}, is distributed with
+the GitHub release tagged \texttt{thesis-2026-09-08}:
+\begin{center}\small
+\url{https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08}
+\end{center}
+The annotated release tag resolves to the same executable-source commit stated
+above.
+Its core-source fingerprint is \texttt{11dda58061ded609}, matching the
+recorded formal artifacts. The fingerprint identifies the nine core source
+files used by the artifact compatibility check, whereas the Git commit
+identifies the published repository snapshot. The supplementary reproduction manifest
 records the full source-file checksums, trained-checkpoint checksum,
 artifact schema, and realized seed sets. The accompanying README specifies
 the execution commands, dependency requirements, raw-output paths, and
@@ -89,10 +103,10 @@ are generated from \texttt{seed-namespace FORMAL} and
 2598636728, 3288100970, 3356860510, 3363951558, 3381681453, 3647799003,
 3716205366, and 4207354830.
 \end{quote}
-Raw replication files and figures are written
-under the project's versioned output directory. The complete executable
-source, rather than the condensed Appendix~A listings, is the electronic
-supplement for reproduction.
+Raw replication files and figures are written under the project's versioned
+output directory and archived as \texttt{figures.zip} in the release linked
+above. The complete executable source, rather than the condensed Appendix~A
+listings, is the electronic supplement for reproduction.
 
 The loan-cap sweep uses a separate 20-seed sample, shared by both mechanisms
 and all three cap values. In sorted order, these seeds are

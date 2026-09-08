@@ -1,33 +1,16 @@
 {
-  "page_count": 116,
+  "page_count": 118,
   "build_engine": "XeLaTeX via latexmk",
   "missing_character_warnings": 0,
   "overfull_box_warnings": 0,
   "unresolved_reference_warnings": 0,
   "page_bounds_violations": [],
   "visually_reviewed_pdf_pages": [
-    3,
-    4,
-    30,
-    31,
-    32,
-    33,
     54,
-    67,
-    70,
-    72,
-    78,
-    79,
-    80,
-    81,
-    90,
-    107,
-    110,
-    111,
-    112,
-    115,
-    116
+    91
   ],
-  "pdf_sha256": "86d48086e51f7fb92fa30317e4e4dab1b9a3ffb5b1bbdaa78410785b6f8a3af8",
-  "delivered_pdf_filename": "Dynamic_Interbank_Network_Formation_revised_20260908.pdf"
+  "source_commit": "fe3445374adac3e90c2d29cbf90100d02b6ee135",
+  "release_tag": "thesis-2026-09-08",
+  "repository_access_date": "2026-09-08",
+  "delivered_pdf_sha256": "e31fee76aafa919b94aa4c47ece045ce64846044ef401ce43e8cc4f6e2b1c533"
 }

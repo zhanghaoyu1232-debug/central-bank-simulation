@@ -31,7 +31,10 @@
     "project_common_random.py": "3327a88cdc217b438d96184c885b9ccd0986c65ff7b2414ecd3e37809be4b715",
     "server.py": "57aa9354c14e631836bae9fa4807146c3849d4ab292714a5e7cc21de851c033a"
   },
-  "git_publication_status": "Read-only verification on 2026-09-08 found public HEAD d8ffdc455d29fea032c71847915e4e373af38b7c. It does not contain the supplied simulation-source snapshot. No remote publication or tag was created.",
+  "git_publication_status": "GitHub master verified by git ls-remote on 2026-09-08 at fe3445374adac3e90c2d29cbf90100d02b6ee135. The annotated tag thesis-2026-09-08 resolves to the same commit, and its GitHub Release distributes figures.zip.",
+  "release_tag": "thesis-2026-09-08",
+  "release_url": "https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08",
+  "raw_output_archive": "figures.zip",
   "matcher_checkpoint": {
     "path": "simulation_source/输入/gnn_pair_matcher_v6_local.pth",
     "sha256": "a02b8d1b15d58f4eef304013750a16cf41d108ac83a6a9ad5b69a0428cfd1e9a",
@@ -488,5 +491,7 @@
     ]
   },
   "remote_source_check": "remote_source_check.json",
-  "targeted_verification_results": "verification_results.json"
+  "targeted_verification_results": "verification_results.json",
+  "source_commit": "fe3445374adac3e90c2d29cbf90100d02b6ee135",
+  "source_branch": "master"
 }

@@ -1,36 +1,26 @@
 {
-  "commit": "d8ffdc455d29fea032c71847915e4e373af38b7c",
-  "core_fingerprint": null,
-  "files": {
-    "bank_simulation_model_decentralized_central_policy.py": {
-      "same_bytes": false
-    },
-    "bank_simulation_model_centralized_central_policy.py": {
-      "same_bytes": false
-    },
-    "bank_regulatory.py": {
-      "error": "HTTP Error 404: Not Found"
-    },
-    "bank_econ_shared.py": {
-      "error": "HTTP Error 404: Not Found"
-    },
-    "interbank_installment_rollover.py": {
-      "same_bytes": false
-    },
-    "interbank_intentions.py": {
-      "error": "HTTP Error 404: Not Found"
-    },
-    "interbank_matcher_shared.py": {
-      "error": "HTTP Error 404: Not Found"
-    },
-    "interbank_resolution.py": {
-      "error": "HTTP Error 404: Not Found"
-    },
-    "project_common_random.py": {
-      "error": "HTTP Error 404: Not Found"
-    }
-  },
-  "core_fingerprint_status": "Unavailable: six required core files are absent at the checked public commit; no complete remote core fingerprint can be computed.",
+  "repository": "https://github.com/zhanghaoyu1232-debug/central-bank-simulation",
   "checked_date": "2026-09-08",
-  "repository": "https://github.com/zhanghaoyu1232-debug/central-bank-simulation"
+  "branch": "master",
+  "commit": "fe3445374adac3e90c2d29cbf90100d02b6ee135",
+  "previous_commit": "d8ffdc455d29fea032c71847915e4e373af38b7c",
+  "branch_tip_verified_by": "git ls-remote",
+  "release_tag": "thesis-2026-09-08",
+  "release_tag_object": "fb132210ecbe5441fb3e4e77084ef6332bf64216",
+  "release_tag_target_commit": "fe3445374adac3e90c2d29cbf90100d02b6ee135",
+  "release_url": "https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08",
+  "release_asset": "figures.zip",
+  "core_fingerprint": "11dda58061ded609",
+  "core_files": {
+    "bank_simulation_model_decentralized_central_policy.py": "1a05481d58f5703d851c4bdae05f096177a23e15f0679b978055ddaef83d1cf4",
+    "bank_simulation_model_centralized_central_policy.py": "a46c95b9cdd5b1ec2ca05307ba04ae68c063e7a23863c182c66b2903bde1d440",
+    "bank_regulatory.py": "92f3ac3def42eab4ef2483ccf13593675ac26206593362ab9e05d42852e00b0f",
+    "bank_econ_shared.py": "acf6c4506537da6b1377b5768d7a4149b7f24f1b1b49b71098d54c7fb62a9919",
+    "interbank_installment_rollover.py": "b9d31321042a739edcaefdda548563501eaef5cf8dd830cde0540bb62f425b05",
+    "interbank_intentions.py": "d796a65ca1965c1865987a3c15cf1da2406f1243b1258af68c638346cd5d1468",
+    "interbank_matcher_shared.py": "a129632a0f9cb8a4d46c321bd77ccc5afb7f1197e1e63aea8c97a8936e7bf339",
+    "interbank_resolution.py": "a56fc8c134d5939d61780fba532cca91aa6276116f93ab95186d5a1bfc59f2dd",
+    "project_common_random.py": "3327a88cdc217b438d96184c885b9ccd0986c65ff7b2414ecd3e37809be4b715"
+  },
+  "publication_status": "The user push completed successfully. The remote master branch tip and annotated release tag were independently confirmed by git ls-remote; the tag resolves to the recorded source commit."
 }
