@@ -80,9 +80,11 @@ before contagion is evaluated.
 
 Second, it implements and compares two daily transaction designs within
 the same balance-sheet, regulatory, contract-accounting, and clearing
-framework: a market-wide centralized mechanism with an all-or-nothing
-borrower rule and a decentralized RFQ mechanism with bounded local lender
-discovery, bilateral quotation, GNN-assisted screening, and retained
+framework: one coordinating principal applies a common allocation rule to
+all eligible orders in the implemented centralized mechanism, while each
+borrower initiates local bilateral search in the implemented RFQ mechanism.
+The former uses an all-or-nothing borrower rule; the latter combines bounded
+lender discovery, individual quotation, GNN-assisted screening, and retained
 partial funding. This makes market design itself part of the endogenous
 network-formation process.
 
@@ -94,8 +96,8 @@ liability matrix, allowing repayment timing and creditor losses to feed
 back into later bank states without prematurely clearing future
 obligations.
 
-Fourth, it combines multidimensional risk measurement with a
-right-censoring-aware comparison over a pre-specified horizon. The
+Fourth, it combines multidimensional risk measurement with a comparison
+that accounts for right censoring over a pre-specified horizon. The
 framework records failures, capital stress, capital gaps, network
 structure, funding outcomes, project losses, and policy intervention.
 Paired state paths, bank-days, and collapse indicators are kept distinct,

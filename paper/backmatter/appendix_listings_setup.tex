@@ -7,7 +7,7 @@
 
 \lstdefinestyle{thesispython}{
   language=Python,
-  basicstyle=\ttfamily\footnotesize,
+  basicstyle={\hyphenpenalty=50\relax\exhyphenpenalty=50\relax\ttfamily\footnotesize},
   keywordstyle=\bfseries,
   commentstyle=\itshape\color{codegray},
   stringstyle=\ttfamily,
@@ -19,7 +19,9 @@
   rulecolor=\color{codeframe},
   breaklines=true,
   breakatwhitespace=false,
-  columns=fullflexible,
+  breakautoindent=true,
+  breakindent=1em,
+  columns=flexible,
   keepspaces=true,
   showstringspaces=false,
   tabsize=4,

@@ -20,6 +20,7 @@ latexmk -xelatex main.tex
 - θ 和 w1：DEN/CEN 分面，共用坐标范围和参数色标，保留全部参数曲线。
 - 上限实验：明确另一套 20 种子，保留真实的独立批次结果。
 - 情景比较：按每对实验的共同原生窗口说明统计方法。
+- 图 7.8 和图 7.9：早停路径以其末期状态延续到第 1000 天后再计算展示用均值，避免失败率因严重路径退出样本而下降。
 - 初始表：保留真实 CSV，说明 solvency 公式和初始 LCR 缓存时点。
 - 附录：补齐无支付违约时的负权益检查、合同残余处理和债权人核销。
 
@@ -38,6 +39,12 @@ python scripts/rebuild_review_figures.py --artifacts-dir "你的figures目录"
 ```
 
 输出保存在 `figures/`，同时提供 PNG 和矢量 PDF。
+
+图 7.8 和图 7.9 可直接从 Release 中的原始结果重建，不运行模拟：
+
+```powershell
+python scripts/rebuild_four_scenario_figures.py --artifacts-dir "你的figures目录" --output-dir figures
+```
 
 ## 复核代码与原始结果
 

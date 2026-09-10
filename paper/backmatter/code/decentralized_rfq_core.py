@@ -70,10 +70,15 @@ class RFQMarket:
                     if supp < self.min_trade_size:
                         exhausted[j].add(lender)
                         continue
-                    amount = min(float(B_max), supp, need)
+                    pair_room = remaining_bilateral_room(system, lender, j, B_max)
+                    if pair_room < self.min_trade_size:
+                        exhausted[j].add(lender)
+                        continue
+                    amount = min(float(B_max), supp, need, pair_room)
                     if amount < self.min_trade_size:
                         continue
-                    if current_degree(system, lender, j) >= MAX_LOCAL_DEGREE:
+                    if not degree_allows_pair(system, lender, j, MAX_LOCAL_DEGREE):
+                        exhausted[j].add(lender)
                         continue
                     if not gnn_accept(system, lender, j, amount):
                         exhausted[j].add(lender)
@@ -142,8 +147,18 @@ def build_local_lender_pool(
     return pool, set(hist), list(rollover_kept)
 
 
-def current_degree(system, lender: int, borrower: int) -> int:
-    return int(getattr(system, "degree", {}).get((int(lender), int(borrower)), 0))
+def degree_allows_pair(system, lender: int, borrower: int, cap: int) -> bool:
+    """Existing links remain feasible; new links require both nodes below cap."""
+    lender_neighbors = set(system.exposure_neighbors(int(lender)))
+    borrower_neighbors = set(system.exposure_neighbors(int(borrower)))
+    if int(borrower) in lender_neighbors:
+        return True
+    return len(lender_neighbors) < int(cap) and len(borrower_neighbors) < int(cap)
+
+
+def remaining_bilateral_room(system, lender: int, borrower: int, B_max: float) -> float:
+    """Gross principal-plus-arrears room from the executable pair-cap rule."""
+    return float(system.remaining_pair_room(int(lender), int(borrower), float(B_max)))
 
 
 def gnn_accept(system, lender: int, borrower: int, amount: float) -> bool:

@@ -15,9 +15,9 @@ payment when it is OFF; and early stopping only when one or fewer
 non-central banks remain active. The complete executable source, realized
 seeds, raw artifacts, dependency specification, and figure/table scripts are
 supplied in the electronic reproduction materials described in Section~6.1.
-The study's repository address is
+The study repository is available at
 \begin{center}\small
-\url{https://github.com/zhanghaoyu1232-debug/central-bank-simulation}
+\href{https://github.com/zhanghaoyu1232-debug/central-bank-simulation}{\texttt{GitHub repository}}
 \end{center}
 The complete source version is published at Git commit
 \begin{center}\small
@@ -28,7 +28,7 @@ The repository and this commit were accessed and verified on September 8,
 The corresponding raw-output archive is published with release tag
 \texttt{thesis-2026-09-08}:
 \begin{center}\small
-\url{https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08}
+\href{https://github.com/zhanghaoyu1232-debug/central-bank-simulation/releases/tag/thesis-2026-09-08}{\texttt{Archived thesis release (thesis-2026-09-08)}}
 \end{center}
 The annotated tag resolves to the executable-source commit stated above.
 The core fingerprint is \texttt{11dda58061ded609} in both the published source
@@ -42,9 +42,10 @@ Listing~\ref{lst:model-core} reflects the current contract treatment. The
 rollover switch selects the repayment schedule when the trade is originated.
 Rollover ON registers a 5--20-period amortizing installment contract
 immediately. Rollover OFF registers a one-business-day single-payment
-contract. The current code does not first create a 10-day bullet loan and does
-not convert principal at a later maturity date. The listing also shows the
-gross debtor-to-creditor orientation used to build due-payment liabilities.
+contract. Under this specification, rollover status determines the repayment
+schedule at origination; the model does not use ex-post conversion of a bullet
+loan. The listing also shows the gross debtor-to-creditor orientation used to
+build due-payment liabilities.
 
 \lstinputlisting[
   caption={Current contract structures, origination-based rollover, gross due-payment aggregation, and role assignment},
@@ -57,9 +58,12 @@ The centralized mechanism updates each bank's latest order and executes a
 market-wide allocation on every business day. The formal experiments set the
 matching cycle length to 1, so there is no 15-business-day batch delay.
 Executable quantities are reconfirmed from current bank states. The allocation
-is rate-prioritized and subject to capacity, degree, and single-loan
-constraints. Borrower funding is all-or-nothing: provisional allocations are
-committed only when the complete demand can be assembled.
+is a deterministic, lender-return-oriented benchmark: higher feasible midpoint
+settlement rates are processed first. It does not minimize borrower financing
+costs or solve a global welfare objective. Capacity, node-degree, and
+single-loan constraints apply, and borrower funding is all-or-nothing:
+provisional allocations are committed only when complete demand can be
+assembled.
 
 \lstinputlisting[
   caption={Daily centralized matching with a borrower-level full-funding rule},
@@ -77,7 +81,10 @@ total demand is not fully satisfied. The listing records every lender source,
 the discovery and random-exploration limits, exclusion after rejection or
 capacity exhaustion, the changing candidates across rounds, and the retained
 partial-funding rule. The complete GNN feature and scoring functions are
-included in the electronic source snapshot.
+included in the electronic source snapshot. The displayed degree test uses
+each endpoint's total current node degree, not a lender--borrower pair counter;
+degree-blocked and bilateral-room-exhausted lenders are removed before the
+next round's candidate positions are assigned.
 
 \lstinputlisting[
   caption={Four-round decentralized RFQ matching with local counterparty search and retained partial funding},

@@ -247,15 +247,17 @@ calendar-day cumulative total. Intervals are paired normal-approximation
 \end{minipage}
 \end{table}
 
-RFQ therefore forms more links and a larger connected component while
+The implemented RFQ mechanism therefore forms more links and a larger
+connected component while
 producing substantially lower bilateral-exposure concentration. Its
 funding-satisfaction ratio is lower, but cumulative volume is similar:
-the paired volume interval includes zero. The market-wide centralized
-rule directs much larger amounts to individual bilateral exposures,
-whereas RFQ spreads transactions across a broader set of counterparties.
-This diversification is the main structural mechanism consistent with
-RFQ's lower capital-gap point estimate; it is not evidence that RFQ
-dominates funding completion.
+the paired volume interval includes zero. The implemented centralized
+mechanism directs much larger amounts to individual bilateral exposures,
+whereas the implemented RFQ mechanism spreads transactions across a broader
+set of counterparties. This pattern is consistent with the lower RFQ
+capital-gap point estimate, but the experiment does not isolate
+decentralization from local discovery, bilateral screening, or partial
+funding. Nor is it evidence that RFQ dominates funding completion.
 
 \section{Response to Common Shocks}
 
@@ -279,10 +281,12 @@ gap is 244 versus 302. RFQ network density rises from 0.071 before the
 shock to 0.076 on the event date and remains near 0.078--0.079 over the
 next four days; centralized density rises more modestly from 0.045 to
 0.048--0.051. Mean SR remains around 0.038 under RFQ and 0.045--0.046
-under centralized matching. These results suggest that RFQ's broader but
-less concentrated set of local links supports post-shock reallocation,
-even though both designs experience the same initial common funding
-pressure.
+under centralized matching. These results are consistent with the broader,
+less concentrated local links of the implemented RFQ design supporting
+post-shock reallocation, even though both designs experience the same
+initial common funding pressure. Because the two mechanisms differ along
+several institutional dimensions, this interpretation is not an isolated
+causal effect of decentralization.
 
 \section{Rollover and Policy-Support Interaction}
 
@@ -296,16 +300,25 @@ and post-project solvency support subject to finite budgets.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.96\textwidth]{figures/compare_four_baselines_decentralized.png}
-\caption{Four rollover/support configurations under decentralized RFQ.}
+\caption{Four rollover/support configurations under decentralized RFQ. Early-stopped paths retain their terminal state in the displayed cross-seed means.}
 \label{fig:four-den}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.96\textwidth]{figures/compare_four_baselines_centralized.png}
-\caption{Four rollover/support configurations under centralized matching.}
+\caption{Four rollover/support configurations under centralized matching. Early-stopped paths retain their terminal state in the displayed cross-seed means.}
 \label{fig:four-cen}
 \end{figure}
+\FloatBarrier
+
+Failure is absorbing in every replication, so each individual
+\(\mathrm{FR}_t\) path is non-decreasing. Before the cross-seed means in
+Figures~\ref{fig:four-den} and \ref{fig:four-cen} are calculated, an
+early-stopped replication is extended through day 1000 with its terminal
+state. Thus no failed bank becomes active again, and the displayed mean
+failure-rate paths cannot fall when a severe replication leaves the observed
+sample.
 
 Across all four configurations, the RFQ mean-risk point estimate is below
 the centralized estimate. The ON/ON paired mean difference is
@@ -314,8 +327,9 @@ configurations the differences are larger and their intervals exclude
 zero: \(-0.0786\) \([-0.1058,-0.0514]\) for ON/OFF,
 \(-0.1053\) \([-0.1323,-0.0783]\) for OFF/ON, and
 \(-0.0878\) \([-0.1234,-0.0522]\) for OFF/OFF. These comparisons show
-that the mechanism ranking is stable in this design, while the absolute
-risk level depends strongly on rollover and support.
+that the ranking between the two implemented designs is stable across these
+four configurations, while the absolute risk level depends strongly on
+rollover and support.
 
 No ON/ON or ON/OFF replication stops before day 1000, so restricted mean
 survival time is 1000 in those cells and cannot distinguish the
@@ -334,8 +348,8 @@ Table~\ref{tab:policy-event} summarizes the exported mean daily policy
 series over the pre-specified 100-business-day window and the full
 horizon. Unique-recipient counts, issuance dates, repayment rates, and
 remaining budgets are not stored in the Monte Carlo artifacts, so those
-event-log fields cannot be estimated. The available series show that both
-mechanisms use liquidity support on 99 of the first 100 days. Centralized
+event-log fields cannot be estimated. The cross-seed mean support series is
+positive on 99 of the first 100 business days under both mechanisms. Centralized
 matching uses more solvency support early in the window (7.80 versus 2.35
 per day), while full-horizon integrated totals remain close.
 

@@ -53,7 +53,7 @@ def decide_origination_schedule(
 
     Rollover ON  -> installment at origination (5--20 periods).
     Rollover OFF -> next-day single payment of principal and interest.
-    There is no 10-day bullet stage and no maturity-date conversion.
+    Repayment mode is fixed at origination; there is no ex-post conversion.
     """
     P = max(0.0, float(principal))
     r = float(settlement_rate)

@@ -22,7 +22,11 @@
       \IfFontExistsTF{HaranoAjiMincho}{
         \setCJKmainfont{HaranoAjiMincho}
       }{
-        \IfFontExistsTF{IPAexMincho}{\setCJKmainfont{IPAexMincho}}{\setCJKmainfont{DejaVu Serif}}
+        \IfFontExistsTF{IPAexMincho}{
+          \setCJKmainfont{IPAexMincho}
+        }{
+          \IfFontExistsTF{FandolSong}{\setCJKmainfont{FandolSong}}{\setCJKmainfont{DejaVu Serif}}
+        }
       }
     }
   }
@@ -39,7 +43,11 @@
       \IfFontExistsTF{HaranoAjiGothic}{
         \setCJKsansfont{HaranoAjiGothic}
       }{
-        \IfFontExistsTF{IPAexGothic}{\setCJKsansfont{IPAexGothic}}{\setCJKsansfont{DejaVu Sans}}
+        \IfFontExistsTF{IPAexGothic}{
+          \setCJKsansfont{IPAexGothic}
+        }{
+          \IfFontExistsTF{FandolHei}{\setCJKsansfont{FandolHei}}{\setCJKsansfont{DejaVu Sans}}
+        }
       }
     }
   }
@@ -51,6 +59,9 @@
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
 \setlength{\emergencystretch}{3em}
+% Keep prose words intact at line endings; emergency stretch absorbs narrow lines.
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
 \usepackage{amsmath,amssymb,mathtools,bm}
 \usepackage{graphicx}
 \graphicspath{{figures/}}

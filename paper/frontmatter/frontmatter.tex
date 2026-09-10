@@ -83,11 +83,11 @@ JM24201　張　浩宇\par}
 \vspace{0.45cm}
 
 {\fontsize{10.5pt}{17pt}\selectfont
-銀行間市場は短期資金の調達と流動性調整の場である一方，債権・債務関係を通じてシステミックリスクを伝播し得る。本研究は，30機関からなる動的シミュレーションを構築し，毎営業日の集中型マッチングと分散型 RFQ が契約清算とリスク経路に与える影響を比較する。
+銀行間市場は短期資金を配分する一方，取引によって形成された債権・債務関係を通じて損失を伝播させる可能性がある。しかし，既存研究では清算時のネットワークを所与とすることが多く，取引制度がエクスポージャーをどのように形成し，その後のリスクにどう影響するかは十分に明らかでない。本研究の目的は，集中型配分と分散型 RFQ の下で内生的に形成される銀行間ネットワークを比較し，資金配分，ネットワーク構造およびシステミックリスクの関係を検討することである。
 
-集中型は市場全体のレート優先配分と借り手単位の全額調達ルールを用いる。RFQ は局所的な貸し手集合に対して1日最大4回，各回最大4先へ照会し，部分調達を保持する。ロールオーバーありの場合，新規貸出を5--20期の分割返済として登録し，ロールオーバーなしの場合は翌営業日に元利を一括返済する。政策支援あり／なしも切り替える。システミックリスクは破綻率，低自己資本比率シェア，資本不足率の複合指標で評価する。評価期間は1000営業日である。
+本研究は，変化する銀行のバランスシート，内生的なネットワーク形成，期日付き契約，\mbox{Eisenberg--Noe} 清算，破綻処理および政策支援を一つの動的シミュレーションに統合する。集中型では一つの主体が市場全体の適格注文を観察し，共通の配分ルールを適用する。RFQ では各借り手が限定された局所的な貸し手集合に個別に照会し，提示された条件に基づいて取引を受け入れる。両方式には共通の会計，規制，契約および清算ルールを適用し，形成されたネットワークを通じて後の支払不足と資本不足がどのように生じるかを追跡する。
 
-基準設定（ロールオーバーあり・政策支援あり）では両方式とも1000日まで崩壊せず，複合リスク経路は近い。RFQ の期間平均リスクは点推定では集中型より低かったが，そのペア差の95\%信頼区間はゼロを含み，統計的に有意な差は確認されなかった。ただし，1000日目の複合リスクのペア差では信頼区間がゼロを含まなかった。一方，RFQ はより多くの小口リンクと低い集中度を形成した。4シナリオでは RFQ の期間平均リスクは点推定では集中型より低かったが，差の大きさは契約と政策の組合せに依存した。以上の結果は，様式化されたシミュレーションに基づく比較結果であり，実際の銀行システムに対する予測を示すものではない。
+シミュレーションでは，実装された RFQ は集中型より多くの小口リンクを形成し，最大の二者間エクスポージャーと集中度を低下させた一方，資金充足度は低かった。基準設定では両方式の複合リスク経路は近く，RFQ の期間平均リスク差は統計的に有意ではないが，最終時点では RFQ のリスクと資本不足が低かった。契約条件と政策支援を変更すると差の大きさも変化した。したがって，一方の方式が常に優れているのではなく，ネットワーク分散化，資金充足度，資本不足および複合リスクの間にはトレードオフがあり，結論は実装された制度とパラメータに依存する。
 
 \noindent\textbf{キーワード：}システミックリスク，銀行間ネットワーク，動的シミュレーション，RFQ，\mbox{Eisenberg--Noe} 清算
 }
@@ -136,11 +136,11 @@ Graduate School of Engineering\par}
 \begingroup
 \fontsize{10.5pt}{17pt}\selectfont
 
-The interbank market allocates short-term funding but can also transmit distress through creditor--debtor links. This thesis develops a dynamic simulation of 30 institutions in which daily centralized matching and daily decentralized request-for-quote (RFQ) matching form interbank loans endogenously, Eisenberg--Noe clearing settles gross due payments, and systemic risk is tracked over 1000 business days.
+Interbank markets allocate short-term funding, but the creditor--debtor links created by trading can also transmit distress. Existing network studies often take these links as given and therefore reveal less about how a trading mechanism creates the exposures that are later cleared. This thesis examines how centralized allocation and decentralized request-for-quote (RFQ) trading endogenously shape funding, network structure, and systemic risk.
 
-Centralized matching uses market-wide rate-based allocation and a borrower-level all-or-nothing rule. RFQ searches a local lender pool, with at most four rounds and four candidates per round, and retains partial trades. Rollover ON originates 5--20-period installment contracts; rollover OFF originates next-day single payments. Policy support can be switched on or off. Systemic risk combines the failure rate, the low-CAR share, and the capital-gap ratio.
+The main contribution is an integrated dynamic framework connecting changing bank balance sheets, endogenous network formation, dated contracts, gross due-payment clearing under Eisenberg--Noe, absorbing default resolution, and policy support. In the centralized mechanism, one principal observes all eligible orders and applies a common allocation rule. In RFQ, borrowers search a limited local lender pool, request individual quotations, and accept bilateral trades without a market-wide coordinator. Both mechanisms operate under common accounting, regulatory, contract, and clearing rules, allowing the networks formed during trading to be followed into later payment and capital shortfalls.
 
-Under the baseline ON/ON setting, neither mechanism collapses by day 1000. Composite-risk paths remain close: the RFQ full-horizon mean-risk estimate is lower, but its paired 95\% confidence interval includes zero. The day-1000 risk difference excludes zero. RFQ forms more, smaller, and less concentrated links. The RFQ mean-risk point estimate is lower in all four rollover--support combinations, and the intervals exclude zero in the three non-baseline configurations; absolute risk levels nevertheless depend strongly on contract and policy settings. These are comparative results from a stylized simulation and are not predictions for an actual banking system.
+The implemented RFQ mechanism forms more and smaller links and reduces both bilateral-exposure concentration and the largest individual exposure, but it also has lower funding satisfaction than the implemented centralized mechanism. Under the baseline specification, the composite-risk paths are close: the full-horizon mean difference is not statistically significant, although RFQ has lower risk and capital shortfall at the final observation. Changing contract and policy settings changes the magnitude of the comparison. The findings therefore identify a trade-off among network dispersion, funding completion, capital shortfall, and composite risk; they do not establish that either institutional design is universally superior.
 
 \par
 \noindent\textbf{Keywords:} systemic risk, interbank network, dynamic simulation,

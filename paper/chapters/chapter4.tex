@@ -16,6 +16,17 @@ The baseline cycle length is therefore one business day. A longer cycle
 can be imposed as a structural robustness exercise, but it is not used in
 the principal Centralized--RFQ comparison.
 
+The operational objective is to provide a deterministic,
+lender-return-oriented benchmark under full eligible-market information.
+One coordinating principal gives priority to borrowers associated with
+the highest feasible midpoint settlement rate and then considers their
+feasible lenders in descending midpoint-rate order. Conditional on that
+priority, it attempts to assemble each borrower's complete demand and
+commits the provisional allocation only when full funding is feasible.
+The mechanism therefore does not minimize borrower financing costs and is
+not presented as a global welfare or maximum-cardinality optimizer. Its
+purpose is to apply one transparent common rule to all eligible orders.
+
 In each period, eligible lending supply and borrowing demand are
 considered jointly across the market. The mechanism determines feasible
 lender--borrower pairs and allocates funds subject to interest-rate
@@ -51,11 +62,12 @@ lender--borrower pair is defined as:
 \end{equation}
 
 A positive interest-rate surplus indicates that the pair is compatible.
-Feasible lender--borrower pairs are ranked according to the matching
-rule used in the centralized allocation routine. When an additional
-compatibility score is enabled, it is combined with the interest-rate
-surplus; otherwise, candidate lenders are ranked deterministically
-according to the applicable lending-rate rule.
+The executable routine uses the feasible midpoint settlement rate to
+implement the lender-return-oriented priority stated above. Reverse
+sorting is therefore intentional: higher feasible midpoint rates are
+processed before lower rates, rather than minimizing the borrower's
+financing cost. This priority is followed by the full-funding
+commit-or-rollback rule.
 
 The centralized allocation is governed by the following feasibility and
 funding conditions:
@@ -85,8 +97,8 @@ is committed only when the borrower's full demand can be covered;
 otherwise, the tentative transactions are rolled back and the lenders'
 available supplies are restored.
 
-Committed trades are processed through the same balance-sheet,
-contract-accounting, and clearing modules used for RFQ trades. However,
+Committed trades are processed through the same balance-sheet accounting,
+contract recording, and clearing modules used for RFQ trades. However,
 the two mechanisms should not be interpreted as differing only in
 counterparty access. Both operate daily, but centralized matching combines
 market-wide visibility and an all-or-nothing borrower rule, whereas RFQ
@@ -101,14 +113,13 @@ non-participant roles. This section focuses on the
 bilateral enquiry, quotation, and transaction-acceptance procedures used
 during the daily matching stage.
 
-Unlike centralized matching, RFQ does not provide borrowers with access
-to a market-wide allocation process. Each borrower contacts only a
-limited set of candidate lenders and requests bilateral quotations.
-Lenders determine whether to quote and on what terms according to their
-remaining loanable funds, minimum acceptable lending rates, and the
-financial condition of the borrower. A borrower may conduct several
-enquiry rounds when its funding demand is not fully satisfied in the
-first round.
+Unlike the centralized principal, RFQ has no market-wide coordinator.
+Each borrower initiates search, observes only a limited local lender pool,
+and requests bilateral quotations. Lenders determine whether and on what
+terms to quote according to their remaining funds, reservation rates, and
+the borrower's condition. A borrower may conduct several enquiry rounds
+when its demand is not fully satisfied and retains acceptable partial
+trades already completed.
 
 The RFQ mechanism begins with the formation of trading intentions. In
 the implementation, each intention records the bank identifier, market
@@ -178,12 +189,15 @@ lender. Outstanding lenders do not consume the new-discovery budget; at
 most eight other lenders may enter the pool.
 
 The borrower may conduct up to four RFQ rounds and contact at most four
-lenders from the same local pool in each round. A degree cap of 12 limits
-new connections. A lender that can supply only part of the requested amount
-remains eligible in later rounds; permanent exhaustion is recorded only
-after a hard rate or screening rejection, zero bilateral room, exhausted
-loanable cash, or lender failure. These rules improve execution within the
-local information set without giving RFQ a market-wide view.
+lenders from the same local pool in each round. A node-level degree cap of
+12 applies separately to both lender and borrower. Existing links remain
+eligible, while a new link requires both nodes to be below the cap.
+Degree-blocked lenders and lenders with no bilateral room are filtered
+before the four candidate positions are filled, so they do not repeatedly
+occupy a position in later rounds. A lender that can supply only part of
+the requested amount remains eligible only while usable cash and bilateral
+room remain. These rules improve execution within the local information set
+without giving RFQ a market-wide view.
 
 Each locally feasible pair is evaluated with the version-6 GNN matcher and
 a teacher-aligned risk score. Ranking gives priority to low borrower
@@ -342,7 +356,7 @@ characteristics with those of the centralized matching mechanism.
 
 \section{Comparison between Centralized and Decentralized Matching}
 
-Centralized matching and decentralized RFQ use the same bank population,
+The implemented centralized mechanism and implemented RFQ mechanism use the same bank population,
 balance-sheet rules, regulatory constraints, contract accounting, and
 due-payment clearing procedure. Their transaction-formation rules,
 however, differ along both a cross-sectional and a temporal dimension.
@@ -398,11 +412,12 @@ counterparties, and component size are therefore treated as empirical
 simulation outcomes rather than imposed properties of either mechanism.
 
 The implications for systemic risk are ambiguous before the simulations
-are run. Centralized coordination may improve funding completion through
-broad access, but the all-or-nothing rule and concentrated allocations can
-still shape subsequent exposures. RFQ allows partial funding, but limited
-counterparty search and repeated bilateral trading
-can alter exposure concentration and later payment losses.
+are run. The implemented centralized mechanism combines full eligible-order
+visibility, descending rate priority, and all-or-nothing borrower funding.
+The implemented RFQ mechanism combines local discovery, bilateral pricing
+and screening, and retained partial funding. Observed differences therefore
+reflect these bundled features and must not be attributed solely to
+centralization or decentralization.
 
 The comparison is evaluated using four groups of outcomes. Funding
 performance is measured through actual lending, funding satisfaction,

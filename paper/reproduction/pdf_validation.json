@@ -1,16 +1,29 @@
 {
-  "page_count": 118,
+  "page_count": 120,
   "build_engine": "XeLaTeX via latexmk",
   "missing_character_warnings": 0,
   "overfull_box_warnings": 0,
   "unresolved_reference_warnings": 0,
   "page_bounds_violations": [],
   "visually_reviewed_pdf_pages": [
-    54,
-    91
+    3,
+    4,
+    18,
+    36,
+    39,
+    55,
+    78,
+    79,
+    80,
+    89,
+    93,
+    95,
+    102,
+    104
   ],
   "source_commit": "fe3445374adac3e90c2d29cbf90100d02b6ee135",
   "release_tag": "thesis-2026-09-08",
   "repository_access_date": "2026-09-08",
-  "delivered_pdf_sha256": "e31fee76aafa919b94aa4c47ece045ce64846044ef401ce43e8cc4f6e2b1c533"
+  "reviewer_revision_date": "2026-09-09",
+  "delivered_pdf_sha256": "1e331038ac812df2104b68c73922374f74412b593bb029585b61e0f086715825"
 }

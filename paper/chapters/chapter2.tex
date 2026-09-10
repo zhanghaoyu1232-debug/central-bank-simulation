@@ -128,29 +128,28 @@ maturity information. The outstanding contracts are then aggregated into
 the exposure and liability matrices required for network analysis and
 clearing.
 
-Interbank links are generated endogenously through two alternative
-matching mechanisms. Centralized matching processes lending supply and
-borrowing demand through a common market-wide allocation procedure. It
-serves as a coordination benchmark in which available information and
-funding opportunities can be considered jointly. Decentralized
-request-for-quote matching instead limits borrowers to a set of
-bilateral enquiries. Potential lenders decide whether and on what terms
-to quote, after which the borrower selects among the available offers.
-As a result, RFQ may leave part of the funding demand unmet even when
-the system contains sufficient aggregate liquidity. It may also create
-repeated relationships or concentrate exposures among institutions that
-are contacted more frequently.
+Interbank links are generated endogenously through two implemented
+matching mechanisms. In the centralized mechanism, one coordinating
+principal observes all eligible lending and borrowing orders and applies
+one common market-wide allocation rule. It is a deterministic,
+lender-return-oriented coordination benchmark, not a representation of a
+specific exchange or central bank. In the decentralized RFQ mechanism,
+each borrower initiates bilateral search within a limited local lender
+pool, requests individual quotations, and accepts feasible trades without
+a market-wide coordinator. RFQ may therefore leave demand unmet even when
+aggregate liquidity exists, and repeated local search may create persistent
+relationships among frequently contacted institutions.
 
-The difference between the two mechanisms concerns not only transaction
-efficiency but also network formation. Centralized allocation can
-distribute funds across a broader set of feasible counterparties,
-whereas RFQ depends on local access, quotation decisions, and bilateral
-selection. These differences can affect which banks obtain funding,
-which lenders accumulate claims, and how repayment losses are
-distributed when contracts mature. Holding the remaining balance-sheet
-rules, contract accounting, and clearing procedure constant makes it
-possible to relate later differences in systemic risk to the way the
-creditor--debtor network was created.
+The comparison differs along several dimensions: information scope,
+counterparty discovery, quotation and screening, allocation priority, and
+the treatment of partial funding. Centralized allocation considers all
+eligible orders jointly and commits a borrower only when its full demand
+can be assembled, whereas RFQ retains acceptable partial trades found
+through local enquiries. These features jointly affect who obtains
+funding, which lenders accumulate claims, and how losses are distributed
+at maturity. Results are therefore interpreted as differences between the
+implemented centralized mechanism and the implemented RFQ mechanism, not
+as the isolated causal effect of centralization alone.
 
 Once scheduled obligations become due, the network shifts from loan
 formation to settlement. A borrower that cannot meet its promised
@@ -162,17 +161,22 @@ outstanding network exposure, and settlement may transmit losses if the
 borrower cannot pay in full. Following the contract across these stages
 links network formation directly to subsequent risk propagation.
 
-Recent research has extended financial-network analysis beyond
-single-layer interbank claims to bank--asset systems, bank--firm
-relationships, and multilayer financial networks {[}19--24, 26{]}.
-Despite differences in market setting, these studies reach a common
-conclusion: systemic vulnerability reflects the interaction between
-balance-sheet weakness and the structure of cross-institution exposures.
-The present framework builds on this literature but differs in one
-central respect. Rather than imposing a fixed network, it generates
-interbank claims through centralized matching and decentralized RFQ,
-preserves those claims as contracts, and follows them into later
-settlement and systemic-risk measurement.
+Recent studies reinforce the need to connect balance sheets with network
+structure. Sun studies systemic risk in China's banking network {[}19{]},
+while Ferracci and Cimini separate balance-sheet and network contributions
+to interbank systemic risk {[}20{]}. Hu, Gan, and Wen show that multiple
+interbank linkage layers can change measured vulnerability {[}21{]}, and Li
+and Zhang provide recent evidence on the relationship between financial
+networks and systemic risk {[}22{]}. Beyond single-layer interbank claims,
+Fan and Hu analyze a bank--asset bipartite network {[}23{]}, Wang et al.
+examine spillovers through bank--firm connections in a multilayer setting
+{[}24{]}, and Qiu et al. apply complex-network analysis to U.S. systemic
+financial risk {[}26{]}. Together, these studies show that vulnerability
+reflects the interaction between bank condition and cross-institution
+exposures. The present framework differs by generating interbank claims
+through implemented centralized and RFQ transaction rules, preserving
+them as dated contracts, and following them into settlement and risk
+measurement.
 
 \section{Clearing Mechanisms}
 
@@ -294,15 +298,15 @@ exist. In the present framework, interbank relationships are instead
 generated during the simulation, allowing network formation and
 subsequent risk propagation to be studied within the same process.
 
-The analysis compares centralized allocation with decentralized
-request-for-quote matching. Both mechanisms use the same bank states,
-regulatory constraints, contract-accounting rules, and clearing
-procedure. Their main difference lies in how information is used and how
-counterparties are selected. Centralized matching coordinates lending
-supply and borrowing demand across the market, whereas RFQ limits each
-borrower to a set of bilateral enquiries and quotations. Holding the
-remaining modules fixed makes the matching rule the main source of
-variation in funding outcomes and network structure.
+The analysis compares one implemented centralized allocation rule with
+one implemented decentralized request-for-quote design. Both use the same
+bank states, regulatory constraints, contract accounting, and clearing.
+The centralized principal observes all eligible orders and applies a
+common rate-prioritized allocation rule. RFQ is borrower initiated: each
+borrower observes only a bounded local lender pool, requests bilateral
+quotes, and accepts trades without market-wide coordination. The designs
+also differ in screening and partial execution, so the comparison does not
+identify centralization as a single isolated treatment.
 
 \subsection{Centralized Matching Mechanism}
 
@@ -328,14 +332,14 @@ Because contracts remain active until their scheduled obligations are
 settled, the interbank network is reconstructed from both newly issued
 loans and exposures inherited from earlier periods.
 
-Centralized matching represents a coordinated market environment.
-Lending opportunities can be considered across the feasible market
-rather than through a sequence of isolated bilateral enquiries. This
-generally allows available liquidity to be allocated more efficiently
-and may reduce unmet borrowing demand. The mechanism is nevertheless an
-idealized benchmark, since real interbank markets do not always provide
-complete information or a single process capable of coordinating all
-transactions.
+Centralized matching represents a coordinated market environment. One
+principal observes the full eligible order set and applies the same
+allocation rule to every participant. In the implementation, higher
+feasible midpoint settlement rates receive priority and a borrower is
+funded only if its complete demand can be assembled. It is therefore an
+idealized, lender-return-oriented benchmark rather than a claim that
+centralized allocation necessarily minimizes financing costs or maximizes
+social welfare.
 
 \subsection{Decentralized RFQ Matching Mechanism}
 
@@ -405,10 +409,10 @@ creditors.
 
 The comparison is conducted under the same balance-sheet updates,
 regulatory rules, contract treatment, and Eisenberg--Noe clearing
-procedure. Any difference in later payment shortfalls or systemic-risk
-indicators can therefore be related to the networks created by the
-matching process rather than to different settlement assumptions. The
-causal sequence is:
+procedure. Differences in later outcomes reflect the complete transaction
+designs---information scope, discovery, quotation and screening, allocation
+priority, and partial-funding treatment---rather than different settlement
+assumptions. The causal sequence is:
 
 
 \begin{equation}
@@ -419,14 +423,14 @@ causal sequence is:
 \end{equation}
 
 
-Under this design, the matching mechanism affects systemic risk through
-several channels. It changes the degree to which borrowing demand is
-satisfied, determines which banks accumulate claims, alters the
-concentration and maturity of exposures, and shapes the liability matrix
-used during clearing. The experimental analysis therefore focuses on
-whether centralized allocation and decentralized RFQ produce different
-funding outcomes, network structures, and subsequent paths of liquidity
-pressure, capital stress, and default contagion.
+Under this design, the implemented matching mechanisms affect systemic
+risk through several channels. They change the degree to which borrowing
+demand is satisfied, determine which banks accumulate claims, alter
+exposure concentration, and shape the liability matrix used during
+clearing. The experimental analysis therefore compares their joint
+effects on funding, network structure, liquidity pressure, capital stress,
+and default contagion; it does not assign every difference to the abstract
+institutional label ``centralized'' or ``decentralized.''
 
 \section{Research Gap}
 

@@ -33,9 +33,9 @@ def centralized_rate_matching(
     r_max: dict[int, float],
 ) -> list[tuple[int, int, float]]:
     """
-    Rate-prioritized allocation with a borrower-level all-or-nothing rule.
-    Provisional edges are committed only if the borrower's complete demand
-    can be assembled; otherwise that borrower remains unfunded.
+    Deterministic lender-return-oriented benchmark: higher feasible midpoint
+    rates are processed first. Provisional edges are committed only if the
+    borrower's complete demand can be assembled; otherwise it remains unfunded.
     """
     eps = 1e-8
     supply_left = np.asarray(supply, dtype=float).copy()
